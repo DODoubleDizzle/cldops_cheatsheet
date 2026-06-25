@@ -25,6 +25,24 @@ Ambient mesh solves this by removing the sidecar proxies, rather providing one z
 
 Additionally, optionally L7 waypoint proxies can be used for policy enforcements.
 
+\subsection{Gateway API \& Ambient Routing}
+Enable ambient on a namespace: \texttt{kubectl label ns x istio.io/dataplane-mode=ambient} (classic sidecar mode uses the \texttt{istio-injection=enabled} label). zTunnel alone gives only L4 metrics; add a \textbf{waypoint} proxy for L7. In ambient the course routes via the K8 \textbf{Gateway API} (\texttt{HTTPRoute}) rather than a VirtualService. Two Deployments behind one Service get $\approx$50/50 by default (plain K8 load balancing); override with weights. Best practice: a \texttt{version} label per Deployment (routing + tracing).
+\begin{lstlisting}[language=yaml]
+# weighted canary (90/10) via HTTPRoute:
+- backendRefs:
+  - { name: frontend,    port: 5000, weight: 90 }
+  - { name: frontend-v2, port: 5000, weight: 10 }
+# traffic mirror/shadow (copy to v2, response dropped):
+- backendRefs:
+  - { name: frontend, port: 5000 }
+  filters:
+  - type: RequestMirror
+    requestMirror:
+      backendRef: { name: frontend-v2, port: 5000 }
+\end{lstlisting}
+\textbf{istio-system pods:} Istiod (control plane), Ingress Gateway (Envoy entrypoint), Prometheus, Grafana, Jaeger (tracing), Kiali (dashboard). \\
+\textbf{Kiali graph shapes:} rectangle = application, triangle = Service, square = workload/pod.
+
 \subsection{Traffic Management}
 In istio, K8 ingress/egress are replaced by gateways, as they allow for more control.
 A VirtualService binds to a gateway and determines how traffic is routed to services.

@@ -54,7 +54,28 @@ A Service gives a stable virtual IP + DNS name to a dynamic set of Pods (selecte
 \textbf{ClusterIP:} (default) internal-only IP, reachable inside the cluster. \\
 \textbf{NodePort:} opens a static port on every node, exposing the Service via \texttt{<NodeIP>:<port>}. \\
 \textbf{LoadBalancer:} provisions an external (cloud) load balancer with a public IP that routes to the Service. \\
-\textbf{Ingress} routes external HTTP(S) by host/path to Services (single entrypoint, needs an ingress controller). The newer \textbf{Gateway API} (\texttt{Gateway} + \texttt{HTTPRoute}) replaces Ingress with a more expressive, role-oriented model.
+\textbf{Ingress} routes external HTTP(S) by host/path to Services (single entrypoint, needs an ingress controller). The newer \textbf{Gateway API} (\texttt{Gateway} + \texttt{HTTPRoute}) replaces Ingress with a more expressive, role-oriented model. \\
+\textit{Port trap:} Service \texttt{port} (its own) vs \texttt{targetPort} (the container) vs \texttt{nodePort}; an Ingress/HTTPRoute backend must reference the \textit{Service} port, not the container port.
+
+\subsection{Using ConfigMaps \& Secrets}
+Inject into Pods as a single env var (\texttt{configMapKeyRef}/\texttt{secretKeyRef}), all keys at once (\texttt{envFrom}), or mounted as files (volume).
+\begin{lstlisting}[language=yaml]
+env:
+- name: APIKEY
+  valueFrom:
+    configMapKeyRef: { name: cfg, key: api-key }
+envFrom:
+- configMapRef: { name: cfg }   # import every key as env var
+volumeMounts:
+- { name: v, mountPath: /etc/cfg }
+volumes:
+- name: v
+  configMap: { name: cfg }      # or: secret: { secretName: s }
+\end{lstlisting}
+
+\subsection{LimitRange \& ResourceQuota}
+\textbf{LimitRange:} min/max + default requests/limits \textit{per container} in a namespace; a Pod outside the range is \textit{rejected}, and a container omitting requests/limits gets the defaults auto-injected. \\
+\textbf{ResourceQuota:} caps the \textit{summed} resources of a \textit{whole namespace}; a Pod that would exceed the total is rejected.
 
 \subsection{Namespaces}
 Used to separate resources. Only resources in same namespace can communicate directly.
@@ -74,13 +95,18 @@ spec:
 \end{lstlisting}
 
 To evaluate if a Node is eligible to run a Pod, the following things are considered: Port availability, CPU \& Memory resources, available volumes, specified labels. Additionally, scoring is used to evaluate remaining nodes with criteria: pods of same service should be on different nodes, nodes with few used resources are prioritized, node affinity. \\
-\textit{Taints} can also be applied on nodes and pods, pods won't be deployed on nodes with matching taints. \textit{Tolerations} can be used to make exceptions to taints. Types of taints: \textit{NoSchedule, PreferNoSchedule, NoExecute}
+\textit{Taints} can also be applied on nodes and pods, pods won't be deployed on nodes with matching taints. \textit{Tolerations} can be used to make exceptions to taints. Types of taints: \textit{NoSchedule, PreferNoSchedule, NoExecute} \\
+CLI: \texttt{kubectl taint nodes <n> gpu=true:NoSchedule} and \texttt{kubectl label nodes <n> disktype=ssd} (remove either by appending a trailing \texttt{-}). \textit{Gotcha:} a toleration only \textit{allows} a Pod onto a tainted node, it does not \textit{force} it there -- pair it with a \texttt{nodeSelector}/affinity to actually pin the Pod.
+\begin{lstlisting}[language=yaml]
+tolerations:
+- { key: "gpu", operator: "Equal", value: "true", effect: "NoSchedule" }
+\end{lstlisting}
 
 \subsection{Probes \& Resources}
 The kubelet uses probes (\texttt{httpGet}, \texttt{tcpSocket} or \texttt{exec}) to check container health: \\
 \textbf{Liveness:} is it alive? On failure $\rightarrow$ restart the container. \\
 \textbf{Readiness:} is it ready to serve? On failure $\rightarrow$ remove pod from Service endpoints (no traffic), but don't restart. \\
-\textbf{Startup:} guards slow-starting apps; disables the other probes until it succeeds. \\
+\textbf{Startup:} guards slow-starting apps; disables the other probes until it succeeds. Repeated liveness failures $\rightarrow$ container restarted with exponential back-off $\rightarrow$ \texttt{CrashLoopBackOff}. \\
 \textbf{requests:} guaranteed minimum the scheduler reserves (used for placement). \textbf{limits:} hard ceiling -- CPU is throttled, memory over-limit $\rightarrow$ OOMKilled.
 \begin{lstlisting}[language=yaml]
 resources:
@@ -95,6 +121,10 @@ readinessProbe:
 \end{lstlisting}
 
 \subsection{Commands}
-Apply a manifest.yaml: \texttt{kubectl {create|apply|replace} -f manifest.yaml} \\
-Connecting to a Pod: \texttt{kubectl exec -it nginx-xxx -- sh}
-Undo rollout: \texttt{kubectl rollout undo}
+Apply a manifest.yaml: \texttt{kubectl \{create|apply|replace\} -f manifest.yaml} \\
+Generate YAML w/o applying: \texttt{kubectl create deploy web --image=nginx --dry-run=client -o yaml > d.yaml} \\
+Imperative: \texttt{kubectl run}, \texttt{kubectl scale deploy x --replicas=4}, \texttt{kubectl expose} \\
+Inspect: \texttt{kubectl get pods -A -o wide}, \texttt{describe node <n>}, \texttt{get nodes --show-labels} \\
+Connecting to a Pod: \texttt{kubectl exec -it nginx-xxx -- sh} (drop \texttt{-it} for one-shot) \\
+Rollout: \texttt{kubectl rollout \{status|history\} deploy x}, \texttt{rollout undo deploy x --to-revision=N} \\
+Default namespace: \texttt{kubectl config set-context --current --namespace=lab}

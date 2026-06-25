@@ -20,8 +20,16 @@ rate(mysql_global_status_commands_total{command=~"(select)"}[5m]) * 100 > 35 -- 
 \end{lstlisting}
 
 \textbf{Grafana:} Visualization tool for metrics \& logs. Connects to data sources (Prometheus, Loki, Elasticsearch)
+
+\subsection{Prometheus Operator}
+\texttt{kube-prometheus-stack} bundles operator + Prometheus + Grafana + Alertmanager. The operator watches CRDs (\texttt{Prometheus}, \texttt{ServiceMonitor}, \texttt{PodMonitor}) and turns a \texttt{Prometheus} CR into a StatefulSet. A \textbf{ServiceMonitor} wires a Service into Prometheus with no config edit -- match chain: Prometheus \texttt{serviceMonitorSelector} $\rightarrow$ ServiceMonitor \texttt{selector} $\rightarrow$ Service \texttt{selector} $\rightarrow$ Pods. \\
+\textbf{node-exporter:} hardware/OS metrics. \textbf{kube-state-metrics:} state of K8 objects, e.g. \texttt{kube\_deployment\_status\_replicas\_ready\{namespace="x",deployment="y"\}}. \\
+\textit{CPU units:} \texttt{100m} = 0.1 CPU, absolute (same amount on a 1- or 48-core node). Install \texttt{metrics-server} for \texttt{kubectl top nodes/pods}.
+
 \subsection{Logging}
-\textbf{Node-Level vs Application Logging:} With application logging, the container of the app itself is directly communicating with the Logging Backend. In Node-Level logging, the application writes to a log-file, which the logging agent periodically reads and relays to the logging backend. The same principles also apply to side-car logging, where in Sidecar streaming, the sidecar writes to a log file, while a sidecar logging agent communicates with the backend directly.
+\textbf{Node-Level vs Application Logging:} With application logging, the container of the app itself is directly communicating with the Logging Backend. In Node-Level logging, the application writes to a log-file, which the logging agent periodically reads and relays to the logging backend. The same principles also apply to side-car logging, where in Sidecar streaming, the sidecar writes to a log file, while a sidecar logging agent communicates with the backend directly. \\
+Container logs live at \texttt{/var/log/pods/...}; \texttt{kubectl logs} just tails that node file (so a \textit{streaming sidecar's} own logs aren't shown). Kubelet rotates at 10MB, keeps 5 files. \\
+\textbf{LogQL} (Loki) selects by stream labels, then filters lines: \texttt{\{job="test"\} |= "error"}. Loki requires unix \textit{nanosecond} timestamps.
 
 \subsection{EFK stack}
 \textit{Also ELK, where Logstash replaces Fluentd} \\

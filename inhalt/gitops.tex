@@ -12,3 +12,17 @@ GitOps uses Git repositories as the single source of truth for infrastructure an
 \subsection{Argo CD vs. Flux CD}
 \textbf{Argo CD:} platform-engineering tool with a web UI \& dashboard. Wraps a deployment in an \texttt{Application} CRD (points at repo+path and a target cluster/namespace). \texttt{ApplicationSet} templates many Applications (multi-cluster, monorepo, per-env). Supports sync waves, health checks, manual or auto sync. \\
 \textbf{Flux CD:} lightweight, CLI-first, built from the GitOps Toolkit controllers. Kustomize- \& Helm-native (\texttt{Kustomization}, \texttt{HelmRelease} CRDs), no built-in UI. Strong on image automation \& notifications.
+
+\subsection{Argo CD in Practice}
+\begin{lstlisting}[language=sh]
+kubectl create namespace argocd
+kubectl apply -n argocd -f .../install.yaml
+kubectl port-forward -n argocd svc/argocd-server 8080:443
+# initial admin password (user: admin):
+kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath="{.data.password}" | base64 -d
+\end{lstlisting}
+Destination for the local cluster: \texttt{https://kubernetes.default.svc}. \\
+\textit{Gotcha:} if a manifest sets \texttt{replicas} \textit{and} an HPA is active, Argo CD and the HPA fight (revert vs rescale) $\rightarrow$ omit \texttt{replicas} from Git. \\
+\textbf{Secrets in GitOps:} (1) \textit{encrypted in Git} (Sealed Secrets, SOPS), or (2) \textit{reference in Git} + fetch from an external store (External Secrets, Vault). \\
+\textit{Access direction:} push = runner needs access \textit{into} the cluster; pull = the cluster reaches \textit{out} to Git (nothing reaches in).

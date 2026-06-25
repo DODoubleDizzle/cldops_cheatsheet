@@ -52,6 +52,26 @@ To create a file, use \texttt{ansible-vault create foo.yaml}
 \textbf{Collections} are bundles of plugins, roles and modules. Install them using \texttt{ansible-galaxy collection install <name>}, or define a requirements.yaml to install multiple collections at once.
 \textbf{Roles} are an abstraction above playbooks, allowing to reuse configuration steps: create a role using \texttt{ansible-galaxy init <name>}, then use a role like in the example above.
 \textbf{Tags} can be used to execute a subset of tasks instead of the whole playbook. Run only specific tags by appending \texttt{--tags <name>} at the end of the ansible-playbook command. There are also two special commands: Tag \textit{always} runs every time, except when explicitly skipped: \texttt{--skip-tags=always}. Tag \textit{never} does not run unless specified with \texttt{--tags=never}
+\subsection{Ad-hoc, Modules \& Error Handling}
+\textbf{Ad-hoc} (one module, no playbook): \texttt{ansible -i inv -m <module> -a '<args>' <target>}. The \texttt{setup} module gathers \textit{facts} (what "Gathering Facts" runs before tasks). \texttt{command} vs \texttt{shell}: \texttt{shell} allows pipes/redirects/vars; \textit{neither is idempotent}. \texttt{ansible-inventory -i inv --list} verifies the inventory; \texttt{--check} is a dry run. A playbook stops at the first failed task unless \texttt{ignore\_errors: true}.
+\begin{lstlisting}[language=yaml]
+# ansible -i inv -m ping all
+# ansible -i inv -m setup all   # gather facts
+- name: validate config
+  command: httpd -t
+  register: out          # capture result into a var
+  changed_when: out.failed
+  ignore_errors: true
+- fail: { msg: "bad config" }
+  when: out.failed
+- file: { path: /data, state: directory } # state: file|link|touch|absent
+- lineinfile: { path: /etc/x.conf, line: "Include sites/*" }
+\end{lstlisting}
+
 \subsection{Jinja2}
-Jinja2 is the templating engine which is used by Ansible. It is used to generate configuration files.
-% TODO: maybe add example for jinja2
+Jinja2 is the templating engine which is used by Ansible. It is used to generate configuration files. Loop over an inventory group inside a \texttt{.j2} template (e.g. to build a load-balancer config); \texttt{\{\{ inventory\_hostname \}\}} is the current target.
+\begin{lstlisting}[language=yaml]
+{% for host in groups['webservers'] %}
+BalancerMember http://{{ host }}
+{% endfor %}
+\end{lstlisting}

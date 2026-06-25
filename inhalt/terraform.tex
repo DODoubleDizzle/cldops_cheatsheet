@@ -40,3 +40,19 @@ module "vpc" {
 }
 # reference an output: module.vpc.vpc_id
 \end{lstlisting}
+
+\subsection{More Commands \& Gotchas}
+\texttt{init} does three things: configure the backend, download providers, download modules. \texttt{fmt} formats, \texttt{validate} checks, \texttt{console} opens a REPL (print with \texttt{var.x}). \texttt{state list} lists tracked resources, \texttt{state show <addr>} shows their attributes. Reference any attribute as \texttt{<type>.<name>.<attr>} (e.g. \texttt{aws\_instance.web.public\_ip}). \\
+\textit{Gotcha:} DynamoDB locking is being deprecated $\rightarrow$ use the S3 backend's \texttt{use\_lockfile} option instead.
+\begin{lstlisting}[language=hcl]
+import {                # adopt existing infra into state
+  to = aws_instance.web
+  id = "i-0abc123"      # provider-side ID; then: apply
+}                       # CLI: terraform import aws_instance.web i-0abc123
+
+variable "AMIS" {       # AMIs differ per region -> use a map
+  type    = map(string)
+  default = { us-east-1 = "ami-05b1..." }
+}
+ami = var.AMIS[var.region]   # select AMI for the region
+\end{lstlisting}

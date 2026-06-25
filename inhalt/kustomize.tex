@@ -58,6 +58,18 @@ kustomize build <dir> # Renders manifests.
 kubectl apply -k <dir> # Applies kustomization via kubectl.
 \end{lstlisting}
 
+\subsection{Images \& Overlays}
+The \textbf{images} transformer changes a container's tag/name without touching the Deployment. \texttt{configMapGenerator}/\texttt{secretGenerator} can also read from \texttt{files:} (not just \texttt{literals:}) to keep config in one place. An overlay pulls in the shared base via \texttt{resources: [../base]}.
+\begin{lstlisting}[language=yaml]
+images:
+- name: myrepo/app   # existing image (no tag)
+  newTag: "0.2.0"    # or newName: otherrepo/app
+configMapGenerator:
+- name: env-cfg
+  files: [config.env]
+\end{lstlisting}
+Render without applying: \texttt{kubectl kustomize <dir>}. Tear down: \texttt{kubectl delete -k <dir>}.
+
 \subsection{Helm vs. Kustomize}
 \textbf{Helm:} templating + package manager (variables via \texttt{values.yaml}, releases, repos, rollbacks); good for distributing reusable apps. \\
 \textbf{Kustomize:} template-free overlays (patch/merge plain YAML per environment), built into \texttt{kubectl} (\texttt{-k}); good for own manifests across dev/test/prod. The two are often combined (Helm to package, Kustomize to patch).

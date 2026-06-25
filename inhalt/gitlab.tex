@@ -67,3 +67,24 @@ GitLab Runner executes jobs defined in \texttt{.gitlab-ci.yml}.
 Types: \textbf{Shared} (managed by GitLab) vs. \textbf{Specific} (self-managed).
 Can run in various executors: \texttt{shell}, \texttt{docker}, \texttt{kubernetes}, etc.
 Tagged runners can restrict which jobs they pick up.
+
+\subsection{More Keywords \& Docker Build}
+\texttt{default:} sets fallback \texttt{image}/\texttt{before\_script} for all jobs. \texttt{before\_script}/\texttt{after\_script} wrap every job's \texttt{script}. \texttt{rules: changes:} runs a job only if listed files changed. \\
+\textbf{Predefined vars:} \texttt{\$CI\_REGISTRY[\_IMAGE]}, \texttt{\$CI\_REGISTRY\_USER}/\texttt{\_PASSWORD}, \texttt{\$CI\_COMMIT\_BRANCH}, \texttt{\$CI\_PROJECT\_DIR}. Pin images by digest (\texttt{img@sha256:..}), not \texttt{:latest} (tags can silently move $\rightarrow$ flaky builds).
+\begin{lstlisting}[language=yaml]
+build-image:
+  stage: release
+  image: docker:28
+  services:
+    - name: docker:28-dind   # Docker-in-Docker
+      alias: docker
+  variables:
+    IMG: $CI_REGISTRY_IMAGE:latest
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -t $IMG -f Dockerfile.prod .
+    - docker push $IMG
+  rules:
+    - changes: [Dockerfile.prod]
+\end{lstlisting}

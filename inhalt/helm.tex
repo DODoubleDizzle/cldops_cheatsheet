@@ -17,6 +17,14 @@ helm show <chart | readme | values | all> <chartname | repo>
 helm upgrade <release> <chart>
 helm rollback <release> <revision>
 
+helm template <name> <chart>    # render locally, no install
+helm template . -f values.yaml --set k=v | wc -l
+helm lint <chart>               # check for errors
+helm uninstall <release>
+helm history <release>          # upgrade & rollback each add a revision
+helm get all|values|notes <release> # values = only overrides
+helm search repo <repo>/<chart> -l  # list ALL versions
+helm install x <chart> --version 1.2.3
 \end{lstlisting}
 
 \subsection{Chart Structure}
@@ -28,3 +36,14 @@ helm rollback <release> <revision>
 	\item \texttt{charts/} -- bundled subcharts (dependencies)
 \end{itemize}
 \textbf{Dependencies} (other charts, e.g. a DB) are declared in \texttt{Chart.yaml} and pulled with \texttt{helm dependency update}.
+
+\subsection{Templating}
+Named templates live in \texttt{templates/\_helpers.tpl} (\texttt{define} + \texttt{include}). Built-ins: \texttt{.Chart.Name} (from Chart.yaml), \texttt{.Release.Namespace}/\texttt{.IsInstall}, \texttt{.Files}. \texttt{templates/NOTES.txt} is rendered \& printed after install. \texttt{helm list} shows CHART version (the package) vs APP VERSION (the software).
+\begin{lstlisting}[language=yaml]
+{{- define "app.name" -}}
+{{ default .Chart.Name .Values.name | trunc 63 }} # fallback + 63-char cap
+{{- end }}
+# use it: {{ include "app.name" . }}
+resources:
+  {{- toYaml .Values.resources | nindent 4 }} # inject a whole sub-tree
+\end{lstlisting}
