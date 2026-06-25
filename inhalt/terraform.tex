@@ -1,5 +1,6 @@
 \section{Terraform}
-TF doesn't speak directly with an SDK, but rather Terraform -> Provider -> Client SDK. Diffrent providers enable diffrent platforms (AWS, Azure, Kubernetes, ...). A sample in HCL (Hashicorp Configuration Language):
+\textbf{Declarative vs. Imperative:} Terraform is \textit{declarative} -- you describe the desired end state and TF figures out the steps to get there. \textit{Imperative} (shell scripts, manual CLI calls) instead describes \textit{how} to reach a result step by step. \\
+TF doesn't speak directly with an SDK, but rather Terraform -> Provider -> Client SDK. Diffrent providers enable diffrent platforms (AWS, Azure, Kubernetes, ...). \textbf{Resources} (\texttt{resource}) are the "what" TF creates and manages (e.g. an EC2 instance). \textbf{Data Sources} (\texttt{data}) are read-only lookups of existing infrastructure used as input (e.g. an existing AMI or VPC). A sample in HCL (Hashicorp Configuration Language):
 \begin{lstlisting}[language=hcl]
 variable "instance_type" {
   default = "t2.micro"
@@ -17,4 +18,25 @@ output "public_ip" {
 \end{lstlisting}
 To deploy infrastructure, write HCL in files like \texttt{main.tf}, then run \texttt{terraform init}, \texttt{terraform plan} to show changes that would be made, \texttt{terraform apply} to actually apply the changes. Use \texttt{terraform destroy} to delete all made changes.
 \subsection{State}
-Terraform stores state in the \texttt{terraform.tfstate} file. When working in teams, this state file also has to be shared as the terraform command relies on is validity. This could for example be done via an S3 Bucket.
+Terraform stores state in the \texttt{terraform.tfstate} file, mapping desired (HCL) to actual (real) infrastructure. When working in teams, this state file also has to be shared as the terraform command relies on is validity. \\
+\textbf{Remote backend:} store state remotely (e.g. an S3 Bucket) so the whole team shares it. \textbf{State locking} (e.g. via DynamoDB) prevents two people running \texttt{apply} at once and corrupting the state.
+\begin{lstlisting}[language=hcl]
+terraform {
+  backend "s3" {
+    bucket         = "my-tfstate"
+    key            = "prod/terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "tf-locks" # state locking
+  }
+}
+\end{lstlisting}
+
+\subsection{Modules}
+Modules are reusable, parameterized templates (a folder of \texttt{.tf} files) to standardize and DRY up infrastructure. The root config is itself a module and can call child modules:
+\begin{lstlisting}[language=hcl]
+module "vpc" {
+  source = "./modules/vpc" # or registry/git URL
+  cidr   = "10.0.0.0/16"   # input variable
+}
+# reference an output: module.vpc.vpc_id
+\end{lstlisting}

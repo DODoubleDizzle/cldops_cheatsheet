@@ -14,6 +14,7 @@
 \textbf{Ingress:} Provides external Access to a Service. \\
 \textbf{DaemonSet:} Ensures that all (or some) Nodes run a copy of a pod. This can be used for running supporting applications (logs, storage)
 \textbf{ConfigMap:} Stores configuration data as key-value pairs. Used to decouple config from code. Mounted into pods as env vars or files. Not meant for sensitive data (use Secrets instead).
+\textbf{Secret:} Like a ConfigMap but for sensitive data (passwords, tokens, certs). Values are only base64-encoded, \textit{not} encrypted by default (enable encryption at rest / use an external secret store). Mounted as env vars or files.
 \begin{lstlisting}[language=yaml]
 apiVersion: apps/v1
 kind: Deployment
@@ -48,10 +49,15 @@ template:
       command: ['sh', '-c', 'while true; do sleep 30; done']
 \end{lstlisting}
 
+\subsection{Services}
+A Service gives a stable virtual IP + DNS name to a dynamic set of Pods (selected by labels) and load-balances across them (round-robin). Types: \\
+\textbf{ClusterIP:} (default) internal-only IP, reachable inside the cluster. \\
+\textbf{NodePort:} opens a static port on every node, exposing the Service via \texttt{<NodeIP>:<port>}. \\
+\textbf{LoadBalancer:} provisions an external (cloud) load balancer with a public IP that routes to the Service. \\
+\textbf{Ingress} routes external HTTP(S) by host/path to Services (single entrypoint, needs an ingress controller). The newer \textbf{Gateway API} (\texttt{Gateway} + \texttt{HTTPRoute}) replaces Ingress with a more expressive, role-oriented model.
+
 \subsection{Namespaces}
 Used to separate resources. Only resources in same namespace can communicate directly.
-
-% TODO: maybe resource limitation
 
 \subsection{Rolling Updates}
 Rolling updates can be used in order to ensure that enough pods are always running.
@@ -70,7 +76,23 @@ spec:
 To evaluate if a Node is eligible to run a Pod, the following things are considered: Port availability, CPU \& Memory resources, available volumes, specified labels. Additionally, scoring is used to evaluate remaining nodes with criteria: pods of same service should be on different nodes, nodes with few used resources are prioritized, node affinity. \\
 \textit{Taints} can also be applied on nodes and pods, pods won't be deployed on nodes with matching taints. \textit{Tolerations} can be used to make exceptions to taints. Types of taints: \textit{NoSchedule, PreferNoSchedule, NoExecute}
 
-% TODO: starting from 25, s.60: storage, secrets, configmap, probes
+\subsection{Probes \& Resources}
+The kubelet uses probes (\texttt{httpGet}, \texttt{tcpSocket} or \texttt{exec}) to check container health: \\
+\textbf{Liveness:} is it alive? On failure $\rightarrow$ restart the container. \\
+\textbf{Readiness:} is it ready to serve? On failure $\rightarrow$ remove pod from Service endpoints (no traffic), but don't restart. \\
+\textbf{Startup:} guards slow-starting apps; disables the other probes until it succeeds. \\
+\textbf{requests:} guaranteed minimum the scheduler reserves (used for placement). \textbf{limits:} hard ceiling -- CPU is throttled, memory over-limit $\rightarrow$ OOMKilled.
+\begin{lstlisting}[language=yaml]
+resources:
+  requests: { cpu: "250m", memory: "64Mi" }
+  limits:   { cpu: "500m", memory: "128Mi" }
+livenessProbe:
+  httpGet: { path: /healthz, port: 80 }
+  initialDelaySeconds: 5
+  periodSeconds: 10
+readinessProbe:
+  httpGet: { path: /ready, port: 80 }
+\end{lstlisting}
 
 \subsection{Commands}
 Apply a manifest.yaml: \texttt{kubectl {create|apply|replace} -f manifest.yaml} \\

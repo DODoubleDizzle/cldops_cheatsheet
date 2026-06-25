@@ -40,6 +40,19 @@ stop_staging:
   script:
     - echo "Stopping staging"
 \end{lstlisting}
+\subsection{Jobs, Stages \& Rules}
+\texttt{.gitlab-ci.yml} is a YAML DSL mapping the DevOps cycle to a pipeline. A \textbf{job} is the smallest unit; it belongs to one \textbf{stage} and runs its \texttt{script} steps on a runner. Jobs in the same stage run in \textit{parallel}, stages run \textit{sequentially}. \\
+\textbf{rules:} decide \textit{when} a job runs (modern replacement for \texttt{only/except}). \textbf{needs:} builds a DAG so a job can start before its whole stage finishes.
+\begin{lstlisting}[language=yaml]
+deploy:
+  stage: deploy
+  needs: [build]
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: on_success
+    - when: never
+\end{lstlisting}
+
 \subsection{Environments}
 Describe where the code gets deployed (e.g. Local, Integration, Testing, Staging, Production). Can be linked to a K8 cluster (needs to be set up via GitLab UI):
 

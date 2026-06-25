@@ -1,2 +1,14 @@
 \section{GitOps}
-GitOps uses Git repositories as the single source of truth for infrastructure and application configurations. Automated agents continuously monitor Git repos and sync changes to target environments automatically.
+GitOps uses Git repositories as the single source of truth for infrastructure and application configurations. Automated agents continuously monitor Git repos and sync changes to target environments automatically. \\
+\textbf{Principles:} \textit{declarative} (desired state lives in Git), \textit{versioned \& immutable} (Git history = audit log, revert = rollback), \textit{pulled automatically} and \textit{continuously reconciled} (agent detects and corrects drift).
+
+\subsection{Push- vs. Pull-Based}
+\textbf{Push (classic CI/CD):} the pipeline holds cluster credentials and pushes manifests into the cluster (\texttt{kubectl apply}). - credentials live outside the cluster, - no drift detection, - every new environment needs pipeline changes. \\
+\textbf{Pull (GitOps):} an agent inside the cluster watches Git and pulls the desired state. + no external credentials / open firewall, + automatic drift correction, + scales to many clusters, - an agent must be installed per cluster.
+
+\subsection{Drift \& Reconciliation}
+\textit{Drift} = the live cluster state diverges from Git (e.g. a manual \texttt{kubectl edit}). The agent runs a \textit{reconciliation loop}: continuously compare Git vs. live state and either report the difference or self-heal (sync/prune) back to the declared state.
+
+\subsection{Argo CD vs. Flux CD}
+\textbf{Argo CD:} platform-engineering tool with a web UI \& dashboard. Wraps a deployment in an \texttt{Application} CRD (points at repo+path and a target cluster/namespace). \texttt{ApplicationSet} templates many Applications (multi-cluster, monorepo, per-env). Supports sync waves, health checks, manual or auto sync. \\
+\textbf{Flux CD:} lightweight, CLI-first, built from the GitOps Toolkit controllers. Kustomize- \& Helm-native (\texttt{Kustomization}, \texttt{HelmRelease} CRDs), no built-in UI. Strong on image automation \& notifications.

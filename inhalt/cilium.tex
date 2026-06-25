@@ -1,0 +1,34 @@
+\section{Cilium \& eBPF}
+\subsection{eBPF}
+\textbf{eBPF (extended Berkeley Packet Filter):} runs sandboxed programs directly in the Linux kernel without changing kernel source or loading modules. Programs attach to hooks (syscalls, network events) and are verified before loading. Enables high-performance networking, observability and security at kernel level.
+
+\subsection{Cilium}
+A CNI (Container Network Interface) plugin built on eBPF. Replaces \texttt{kube-proxy}: instead of one iptables rule chain per Service, it programs eBPF maps in the kernel (faster, scales better). \\
+\textbf{Identity-based security:} Cilium derives a security \textit{identity} from a pod's labels (not from its IP). Policy is enforced on identities, so it survives pod rescheduling and IP changes. \\
+\textbf{Hubble:} Cilium's observability layer; gives network flow visibility (service map, L3--L7 flows).
+
+\subsection{Network Policies}
+Declarative firewall rules for pod traffic. Plain \texttt{NetworkPolicy} works at L3/L4 (IP, port, protocol). \texttt{CiliumNetworkPolicy} adds L7 (HTTP method/path, DNS, gRPC, Kafka). \\
+\textbf{Default deny:} as soon as a pod is selected by any policy, all non-matching traffic is dropped (whitelist model). Rules split into \textbf{ingress} (incoming) and \textbf{egress} (outgoing) and are \textit{stateful}: return traffic of an allowed connection is permitted automatically.
+\begin{lstlisting}[language=yaml]
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-frontend
+spec:
+  endpointSelector:
+    matchLabels:
+      app: backend       # applies to backend pods
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: frontend    # only frontend may connect
+    toPorts:
+    - ports:
+      - port: "80"
+        protocol: TCP
+      rules:
+        http:            # L7 rule
+        - method: GET
+          path: "/api/.*"
+\end{lstlisting}

@@ -57,3 +57,7 @@ resources: # resource files are also under /mysql/
 kustomize build <dir> # Renders manifests.
 kubectl apply -k <dir> # Applies kustomization via kubectl.
 \end{lstlisting}
+
+\subsection{Helm vs. Kustomize}
+\textbf{Helm:} templating + package manager (variables via \texttt{values.yaml}, releases, repos, rollbacks); good for distributing reusable apps. \\
+\textbf{Kustomize:} template-free overlays (patch/merge plain YAML per environment), built into \texttt{kubectl} (\texttt{-k}); good for own manifests across dev/test/prod. The two are often combined (Helm to package, Kustomize to patch).

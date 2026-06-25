@@ -1,7 +1,17 @@
 \section{Ansible}
-Ansible can be used to provision servers. It does not have statefiles and is idempotent, meaning it won't make changes unless it has to. Ansible requires python to be installed on target machines as well as control machines (host).
+Ansible can be used to provision servers. It does not have statefiles and is idempotent, meaning it won't make changes unless it has to. Ansible requires python to be installed on target machines as well as control machines (host). \\
+\textbf{Terraform vs. Ansible:} Terraform \textit{provisions} infrastructure (create VMs, networks); Ansible \textit{configures} the provisioned machines (install \& configure software, deploy code). Often combined. Ansible is \textit{agentless} and \textit{push-based} (connects out via SSH).
 \subsection{Infrastructure}
-In a network of servers, one server is the \textbf{host}. The host can connect to other machines using SSH. On the host, playbooks can be written in \texttt{yaml} files. Run a playbook by using \texttt{ansible-playbook playbook.yaml}
+In a network of servers, one server is the \textbf{host}. The host can connect to other machines using SSH. On the host, playbooks can be written in \texttt{yaml} files. Run a playbook by using \texttt{ansible-playbook playbook.yaml} \\
+\textbf{Inventory:} lists the managed hosts, grouped, in INI or YAML format. Referenced by a play's \texttt{hosts:} field.
+\begin{lstlisting}
+[web]
+web1.example.com
+web2.example.com ansible_host=10.0.0.5
+
+[web:vars]
+ansible_user=deploy
+\end{lstlisting}
 
 \begin{lstlisting}[language=yaml]
 - name: Example Playbook

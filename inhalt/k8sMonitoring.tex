@@ -1,4 +1,5 @@
 \section{K8s Monitoring \& Logging}
+\textbf{Three pillars of observability:} \textit{Metrics} (quantitative numbers over time), \textit{Logs} (qualitative event records), \textit{Traces} (follow one request across services via \textit{spans} to find latency/bottlenecks, e.g. Tempo, Jaeger). \\
 \textbf{Monitoring:} metrics, alerts, trends – quantitative (resource usage, request counts, error rates)\\
 \textbf{Logging:} detailed event records – qualitative (stack traces, system messages, business events) \\
 Kubernetes does not persist metrics out of the box. \texttt{kubectl logs} only persists logs for running containers, logs lost when container dies.
