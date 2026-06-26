@@ -39,18 +39,18 @@
 % argument of the LAST command in the before-code, so \sectionbar gets it.
 \newcommand{\sectionbar}[1]{%
 	{\setlength{\fboxsep}{2.2pt}%
-	 \colorbox{myblue}{%
+	 \colorbox{mylightblue}{%
 	   \parbox{\dimexpr\linewidth-2\fboxsep\relax}{%
 	     \sffamily\bfseries\small\color{white}\thesection\hspace{0.6em}#1}}}}
 \newcommand{\subsectionbar}[1]{%
 	{\setlength{\fboxsep}{1.6pt}%
-	 \colorbox{myblue!13}{%
+	 \colorbox{mylightblue!15}{%
 	   \parbox{\dimexpr\linewidth-2\fboxsep\relax}{%
-	     \sffamily\bfseries\footnotesize\color{myblue}\thesubsection\hspace{0.5em}#1}}}}
+	     \sffamily\bfseries\footnotesize\color{mylightblue}\thesubsection\hspace{0.5em}#1}}}}
 \titleformat{\section}[block]{}{}{0pt}{\sectionbar}
 \titleformat{\subsection}[block]{}{}{0pt}{\subsectionbar}
 \titleformat{\subsubsection}
-{\sffamily\bfseries\scriptsize\color{myblue}}
+{\sffamily\bfseries\scriptsize\color{mylightblue}}
 {\thesubsubsection}{1em}{}
 
 % Margins of subsections
@@ -61,8 +61,8 @@
 
 % Margins of itemize & enumerates
 \usepackage{enumitem}
-\setlist[itemize]{nosep, topsep=0pt}
-\setlist[enumerate]{nosep, topsep=0pt}
+\setlist[itemize]{nosep, topsep=0pt, leftmargin=1.2em}
+\setlist[enumerate]{nosep, topsep=0pt, leftmargin=1.5em}
 
 % For frames
 \usepackage{mdframed}
