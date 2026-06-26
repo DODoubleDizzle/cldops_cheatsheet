@@ -1,6 +1,6 @@
 \section{Ansible}
 Ansible can be used to provision servers. It does not have statefiles and is idempotent, meaning it won't make changes unless it has to. Ansible requires python to be installed on target machines as well as control machines (host). \\
-\textbf{Terraform vs. Ansible:} Terraform \textit{provisions} infrastructure (create VMs, networks); Ansible \textit{configures} the provisioned machines (install \& configure software, deploy code). Often combined. Ansible is \textit{agentless} and \textit{push-based} (connects out via SSH).
+\textbf{Terraform vs. Ansible:} Terraform \textit{provisions} infrastructure (create VMs, networks); Ansible \textit{configures} the provisioned machines (install \& configure software, deploy code). Often combined. Ansible is \textit{agentless} \& \textit{push-based}: over SSH it copies the generated Python module to a temp dir (\texttt{\textasciitilde/.ansible/tmp}) on the target, runs it with the remote Python, returns the result as JSON on stdout, then deletes it, nothing stays installed.
 \subsection{Infrastructure}
 In a network of servers, one server is the \textbf{host}. The host can connect to other machines using SSH. On the host, playbooks can be written in \texttt{yaml} files. Run a playbook by using \texttt{ansible-playbook playbook.yaml} \\
 \textbf{Inventory:} lists the managed hosts, grouped, in INI or YAML format. Referenced by a play's \texttt{hosts:} field.
@@ -47,7 +47,8 @@ ansible_user=deploy
 \end{lstlisting}
 \subsection{Vaults}
 Vaults can be used to encrypt data: The file \texttt{vault.yaml} with the contents \texttt{vault\string_password: "mysecret"} can be encrypted using \texttt{ansible-vault encrypt vault.yml} and then included in a play: \texttt{ansible-playbook playbook.yml --ask-vault-pass}
-To create a file, use \texttt{ansible-vault create foo.yaml}
+To create a file, use \texttt{ansible-vault create foo.yaml} \\
+Once encrypted the file is just ciphertext, so committing it to Git is safe \& intended -- only the vault password must stay out of the repo.
 \subsection{Collections, Roles \& Tags}
 
 \textbf{Collections} are bundles of plugins, roles and modules. Install them using \texttt{ansible-galaxy collection install <name>}, or define a requirements.yaml to install multiple collections at once.

@@ -19,14 +19,14 @@ output "public_ip" {
 To deploy infrastructure, write HCL in files like \texttt{main.tf}, then run \texttt{terraform init}, \texttt{terraform plan} to show changes that would be made, \texttt{terraform apply} to actually apply the changes. Use \texttt{terraform destroy} to delete all made changes.
 \subsection{State}
 Terraform stores state in the \texttt{terraform.tfstate} file, mapping desired (HCL) to actual (real) infrastructure. When working in teams, this state file also has to be shared as the terraform command relies on is validity. \\
-\textbf{Remote backend:} store state remotely (e.g. an S3 Bucket) so the whole team shares it. \textbf{State locking} (e.g. via DynamoDB) prevents two people running \texttt{apply} at once and corrupting the state.
+\textbf{Remote backend:} store state remotely (e.g. an S3 Bucket) so the whole team shares it. \textbf{State locking} prevents two people running \texttt{apply} at once and corrupting the state; the S3 backend locks natively via \texttt{use\_lockfile} (older setups used a separate DynamoDB table).
 \begin{lstlisting}[language=hcl]
 terraform {
   backend "s3" {
     bucket         = "my-tfstate"
     key            = "prod/terraform.tfstate"
     region         = "us-east-1"
-    dynamodb_table = "tf-locks" # state locking
+    use_lockfile   = true # S3-native state locking (replaces DynamoDB)
   }
 }
 \end{lstlisting}
@@ -41,9 +41,8 @@ module "vpc" {
 # reference an output: module.vpc.vpc_id
 \end{lstlisting}
 
-\subsection{More Commands \& Gotchas}
-\texttt{init} does three things: configure the backend, download providers, download modules. \texttt{fmt} formats, \texttt{validate} checks, \texttt{console} opens a REPL (print with \texttt{var.x}). \texttt{state list} lists tracked resources, \texttt{state show <addr>} shows their attributes. Reference any attribute as \texttt{<type>.<name>.<attr>} (e.g. \texttt{aws\_instance.web.public\_ip}). \\
-\textit{Gotcha:} DynamoDB locking is being deprecated $\rightarrow$ use the S3 backend's \texttt{use\_lockfile} option instead.
+\subsection{More Commands \& Patterns}
+\texttt{init} does three things: configure the backend, download providers, download modules. \texttt{fmt} formats, \texttt{validate} checks, \texttt{console} opens a REPL (print with \texttt{var.x}). \texttt{state list} lists tracked resources, \texttt{state show <addr>} shows their attributes. Reference any attribute as \texttt{<type>.<name>.<attr>} (e.g. \texttt{aws\_instance.web.public\_ip}).
 \begin{lstlisting}[language=hcl]
 import {                # adopt existing infra into state
   to = aws_instance.web

@@ -46,7 +46,7 @@ Enable ambient on a namespace: \texttt{kubectl label ns x istio.io/dataplane-mod
 \subsection{Traffic Management}
 In istio, K8 ingress/egress are replaced by gateways, as they allow for more control.
 A VirtualService binds to a gateway and determines how traffic is routed to services.
-DestinationRules allow to
+DestinationRules apply policies \textit{after} routing: load balancing, connection pool, outlier detection (circuit breaking), TLS mode, and define \textit{subsets} (e.g. versions) that VirtualServices route to.
 \begin{lstlisting}[language=yaml]
 apiVersion: networking.istio.io/v1beta1
 kind: Gateway

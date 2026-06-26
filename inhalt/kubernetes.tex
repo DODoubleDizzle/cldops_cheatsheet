@@ -1,19 +1,19 @@
 \section{Kubernetes (K8)}
 \begin{mdframed}
-	\textbf{K8 Objects:} Persistent entities which signal an intent (e.g. for something to be created on the cluster) \\
-	\textbf{K8 Controller:} Tracks an Object and is responsible for bringing the current State closer to the desired State.
+  \textbf{K8 Objects:} Persistent entities which signal an intent (e.g. for something to be created on the cluster) \\
+  \textbf{K8 Controller:} Tracks an Object and is responsible for bringing the current State closer to the desired State.
 \end{mdframed}
 
 \textbf{Pod:} Represents a process running on your cluster. Should contain one container, multiple are possible. \\
 \textbf{Sidecars:} Sidecars are containers that run along the primary container in the same pod. Example use cases might be logging, security, data synchronization. \\
 \textbf{Init Containers:} Similar to sidecars, but run and finish before app containers.
-\textbf{Volume:} Assigns physical Storage to a Pod \\
+\textbf{Volume:} Assigns physical Storage to a Pod.
+\textbf{Ingress:} Provides external Access to a Service. \\
 \textbf{ReplicaSet:} Makes sure that a specified number of replica pods are running. In practice, deployments are used. \\
 \textbf{Deployment:} Allows to manage one or multiple Pods. \\
 \textbf{Service:} API Resource to expose logical set of Pods in the namespace. Acts as a load balancer (round-robin). \\
-\textbf{Ingress:} Provides external Access to a Service. \\
-\textbf{DaemonSet:} Ensures that all (or some) Nodes run a copy of a pod. This can be used for running supporting applications (logs, storage)
-\textbf{ConfigMap:} Stores configuration data as key-value pairs. Used to decouple config from code. Mounted into pods as env vars or files. Not meant for sensitive data (use Secrets instead).
+\textbf{DaemonSet:} Ensures that all (or some) Nodes run a copy of a pod. This can be used for running supporting applications (logs, storage) \\
+\textbf{ConfigMap:} Stores configuration data as key-value pairs. Used to decouple config from code. Mounted into pods as env vars or files. Not meant for sensitive data (use Secrets instead).\\
 \textbf{Secret:} Like a ConfigMap but for sensitive data (passwords, tokens, certs). Values are only base64-encoded, \textit{not} encrypted by default (enable encryption at rest / use an external secret store). Mounted as env vars or files.
 \begin{lstlisting}[language=yaml]
 apiVersion: apps/v1

@@ -1,5 +1,8 @@
 \section{K8s Monitoring \& Logging}
-\textbf{Three pillars of observability:} \textit{Metrics} (quantitative numbers over time), \textit{Logs} (qualitative event records), \textit{Traces} (follow one request across services via \textit{spans} to find latency/bottlenecks, e.g. Tempo, Jaeger). \\
+\textbf{Three pillars of observability:}
+\textit{Metrics} (quantitative numbers over time), \\
+\textit{Logs} (qualitative event records),\\
+\textit{Traces} (follow one request across services via \textit{spans} to find latency/bottlenecks, e.g. Tempo, Jaeger). \\
 \textbf{Monitoring:} metrics, alerts, trends – quantitative (resource usage, request counts, error rates)\\
 \textbf{Logging:} detailed event records – qualitative (stack traces, system messages, business events) \\
 Kubernetes does not persist metrics out of the box. \texttt{kubectl logs} only persists logs for running containers, logs lost when container dies.
@@ -23,7 +26,10 @@ rate(mysql_global_status_commands_total{command=~"(select)"}[5m]) * 100 > 35 -- 
 
 \subsection{Prometheus Operator}
 \texttt{kube-prometheus-stack} bundles operator + Prometheus + Grafana + Alertmanager. The operator watches CRDs (\texttt{Prometheus}, \texttt{ServiceMonitor}, \texttt{PodMonitor}) and turns a \texttt{Prometheus} CR into a StatefulSet. A \textbf{ServiceMonitor} wires a Service into Prometheus with no config edit -- match chain: Prometheus \texttt{serviceMonitorSelector} $\rightarrow$ ServiceMonitor \texttt{selector} $\rightarrow$ Service \texttt{selector} $\rightarrow$ Pods. \\
-\textbf{node-exporter:} hardware/OS metrics. \textbf{kube-state-metrics:} state of K8 objects, e.g. \texttt{kube\_deployment\_status\_replicas\_ready\{namespace="x",deployment="y"\}}. \\
+\textbf{node-exporter:} hardware/OS metrics. \textbf{kube-state-metrics:} state of K8 objects, e.g.:
+\begin{lstlisting}[language=sql]
+kube_deployment_status_replicas_ready{namespace="x",deployment="y"}
+\end{lstlisting}
 \textit{CPU units:} \texttt{100m} = 0.1 CPU, absolute (same amount on a 1- or 48-core node). Install \texttt{metrics-server} for \texttt{kubectl top nodes/pods}.
 
 \subsection{Logging}
@@ -35,4 +41,5 @@ Container logs live at \texttt{/var/log/pods/...}; \texttt{kubectl logs} just ta
 \textit{Also ELK, where Logstash replaces Fluentd} \\
 \textbf{Elasticsearch:} Search engine written in Java, works with indices to handle huge amounts of data, especially JSON documents. \\
 \textbf{Fluentd:} Data Collection written in Ruby. Collects, filters and buffers logs from different sources, tries to store logging data as JSON. Typically runs as DaemonSet on each node and forwards Data to Elasticsearch. \\
-\textbf{Kibana:} Similar to Grafana, Kibana can display data living in Elasticsearch.
+\textbf{Kibana:} Similar to Grafana, Kibana can display data living in Elasticsearch. \\
+\textbf{EFK/ELK vs. Loki (PLG):} Elasticsearch + full-text indexes the log \textit{content} (powerful queries/analytics, mature, Kibana), - resource-hungry (CPU/RAM/disk) \& harder to scale. Loki + only indexes \textit{labels}/metadata (cheap, lightweight, native Grafana \& PromQL-like LogQL), - weaker arbitrary full-text search.
