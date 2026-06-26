@@ -35,14 +35,22 @@
 
 % Restyling (sub)sections
 \usepackage[compact,nostruts]{titlesec}
-\titleformat{\section}
-{\sffamily\bfseries\small\color{myblue}}
-{\thesection}{1em}{}
-\titleformat{\subsection}
-{\sffamily\bfseries\footnotesize\color{mylightblue}}
-{\thesubsection}{1em}{}
+% Full-column-width title bars. titlesec passes the title text as the
+% argument of the LAST command in the before-code, so \sectionbar gets it.
+\newcommand{\sectionbar}[1]{%
+	{\setlength{\fboxsep}{2.2pt}%
+	 \colorbox{myblue}{%
+	   \parbox{\dimexpr\linewidth-2\fboxsep\relax}{%
+	     \sffamily\bfseries\small\color{white}\thesection\hspace{0.6em}#1}}}}
+\newcommand{\subsectionbar}[1]{%
+	{\setlength{\fboxsep}{1.6pt}%
+	 \colorbox{myblue!13}{%
+	   \parbox{\dimexpr\linewidth-2\fboxsep\relax}{%
+	     \sffamily\bfseries\footnotesize\color{myblue}\thesubsection\hspace{0.5em}#1}}}}
+\titleformat{\section}[block]{}{}{0pt}{\sectionbar}
+\titleformat{\subsection}[block]{}{}{0pt}{\subsectionbar}
 \titleformat{\subsubsection}
-{\sffamily\bfseries\scriptsize}
+{\sffamily\bfseries\scriptsize\color{myblue}}
 {\thesubsubsection}{1em}{}
 
 % Margins of subsections
