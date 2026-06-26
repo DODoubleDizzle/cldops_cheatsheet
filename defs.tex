@@ -6,16 +6,18 @@
 \usepackage{microtype}
 \usepackage{multicol}
 
-\everymath{\color{myblue}} % All mathblocks blue
-\everydisplay{\color{myblue}} % All display math blue
+\everymath{\color{myblue}} % All inline math in the accent color
+\everydisplay{\color{myblue}} % All display math in the accent color
 
 \renewcommand{\baselinestretch}{0.8} % Scales line-to-line spacing
 \setlength{\parindent}{0pt} % No first-line indent at paragraph beginning
 
 % Set custom colors
 \usepackage{xcolor}
-\definecolor{myblue}{cmyk}{1,.72,0,.38}
-\definecolor{mylightblue}{cmyk}{1,.22,0,.20}
+% Theme accent (names are historical; currently a charcoal palette).
+% Change these two lines to re-theme all titles, inline math & code keywords.
+\definecolor{myblue}{HTML}{263238}      % charcoal/slate: section bars, title text, math, keywords
+\definecolor{mylightblue}{HTML}{5B6B76} % slate gray: used at !18 as the pale subsection tint
 
 % Load tikz with extensions
 \usepackage{tikz}
@@ -39,18 +41,18 @@
 % argument of the LAST command in the before-code, so \sectionbar gets it.
 \newcommand{\sectionbar}[1]{%
 	{\setlength{\fboxsep}{2.2pt}%
-	 \colorbox{mylightblue}{%
+	 \colorbox{myblue}{%
 	   \parbox{\dimexpr\linewidth-2\fboxsep\relax}{%
 	     \sffamily\bfseries\small\color{white}\thesection\hspace{0.6em}#1}}}}
 \newcommand{\subsectionbar}[1]{%
 	{\setlength{\fboxsep}{1.6pt}%
-	 \colorbox{mylightblue!15}{%
+	 \colorbox{mylightblue}{%
 	   \parbox{\dimexpr\linewidth-2\fboxsep\relax}{%
-	     \sffamily\bfseries\footnotesize\color{mylightblue}\thesubsection\hspace{0.5em}#1}}}}
+	     \sffamily\bfseries\footnotesize\color{white}\thesubsection\hspace{0.5em}#1}}}}
 \titleformat{\section}[block]{}{}{0pt}{\sectionbar}
 \titleformat{\subsection}[block]{}{}{0pt}{\subsectionbar}
 \titleformat{\subsubsection}
-{\sffamily\bfseries\scriptsize\color{mylightblue}}
+{\sffamily\bfseries\scriptsize\color{myblue}}
 {\thesubsubsection}{1em}{}
 
 % Margins of subsections
