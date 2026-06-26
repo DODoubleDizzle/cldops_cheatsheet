@@ -8,7 +8,8 @@ A microservice is a small, independent application that handles one specific bus
 \subsection{Service Mesh w/ Sidecar Pattern}
 A Service Mesh uses Sidecars in all the Pods. The sidecars act as a proxy and also include additional functionality (Monitoring, Security, ...)
 
-% TODO: pros/cons
+\textbf{Pros:} + transparent (no app code changes, language-agnostic), + per-pod isolation (a proxy's config/failure is scoped to its pod), + platform team owns cross-cutting concerns (mTLS, retries, routing, telemetry). \\
+\textbf{Cons:} - one proxy per pod $\rightarrow$ CPU/RAM scale with pod count, - extra network hop adds latency, - operational overhead (sidecar injection, proxy upgrade needs a pod restart), - overkill for few services.
 
 \includegraphics[width=0.19\textwidth]{ServiceMesh.png}
 
