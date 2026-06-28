@@ -2,56 +2,61 @@
 \textbf{Declarative vs. Imperative:} Terraform is \textit{declarative} -- you describe the desired end state and TF figures out the steps to get there. \textit{Imperative} (shell scripts, manual CLI calls) instead describes \textit{how} to reach a result step by step. \\
 TF doesn't speak directly with an SDK, but rather Terraform -> Provider -> Client SDK. Diffrent providers enable diffrent platforms (AWS, Azure, Kubernetes, ...). \textbf{Resources} (\texttt{resource}) are the "what" TF creates and manages (e.g. an EC2 instance). \textbf{Data Sources} (\texttt{data}) are read-only lookups of existing infrastructure used as input (e.g. an existing AMI or VPC). A sample in HCL (Hashicorp Configuration Language):
 \begin{lstlisting}[language=hcl]
-variable "instance_type" {
-  default = "t2.micro"
+terraform {
+  required_version = ">= 1.0.0"
+  required_providers { aws = { source = "hashicorp/aws", version = "~> 5.0" } }
 }
-provider "aws" {
-  region = "us-east-1"
-}
+provider "aws" { region = "us-east-1" }
+variable "instance_type" { default = "t2.micro" }
 resource "aws_instance" "web" {
-  ami           = "ami-0c55b159cbfafe1f0"
+  ami           = data.aws_ami.ubuntu.id
   instance_type = var.instance_type
 }
-output "public_ip" {
-  value = aws_instance.web.public_ip
-}
+output "public_ip" { value = aws_instance.web.public_ip }
 \end{lstlisting}
 To deploy infrastructure, write HCL in files like \texttt{main.tf}, then run \texttt{terraform init}, \texttt{terraform plan} to show changes that would be made, \texttt{terraform apply} to actually apply the changes. Use \texttt{terraform destroy} to delete all made changes.
+\subsection{OpenTofu}
+Fork of Terraform v1.5.7 under \textbf{Linux Foundation}, MPL-2.0 (TF switched to BUSL). Drop-in replacement, adds \textbf{state encryption}. Avoids single-vendor lock-in.
+\subsection{HCL Features}
+\textbf{count} (numeric loop, \texttt{count.index}) and \textbf{for\_each} (map/set loop, \texttt{each.key/value}) for multiple instances. \textbf{Data source} example:
+\begin{lstlisting}[language=hcl]
+data "aws_ami" "ubuntu" {
+  most_recent = true
+  filter { name = "name"   values = ["ubuntu/images/hvm-ssd/ubuntu-*"] }
+  filter { name = "virtualization-type" values = ["hvm"] }
+  owners = ["099720109477"] # Canonical
+}
+\end{lstlisting}
+\subsection{Variables}
+Precedence: CLI \texttt{-var}/\texttt{-var-file} > env \texttt{TF\_VAR\_<name>} > \texttt{*.tfvars} > default. No default \& not supplied -> CLI prompts operator. \texttt{TF\_VAR\_} prefix ideal for secrets (\texttt{TF\_VAR\_access\_key=...}). \texttt{depends\_on} forces explicit ordering; implicit deps come from attribute references.
 \subsection{State}
-Terraform stores state in the \texttt{terraform.tfstate} file, mapping desired (HCL) to actual (real) infrastructure. When working in teams, this state file also has to be shared as the terraform command relies on is validity. \\
-\textbf{Remote backend:} store state remotely (e.g. an S3 Bucket) so the whole team shares it. \textbf{State locking} prevents two people running \texttt{apply} at once and corrupting the state; the S3 backend locks natively via \texttt{use\_lockfile} (older setups used a separate DynamoDB table).
+\texttt{terraform.tfstate} (JSON) maps HCL to real resource IDs (e.g. ARN). \textbf{3-way diff} on apply: \textbf{NEW} (HCL) vs \textbf{PREVIOUS} (.tfstate) vs \textbf{EXISTING} (cloud refresh) -> decides actions, detects drift. \textbf{Remote backend} (S3) shares state in teams; \textbf{state locking} via \texttt{use\_lockfile} (S3-native, replaces DynamoDB):
 \begin{lstlisting}[language=hcl]
 terraform {
   backend "s3" {
-    bucket         = "my-tfstate"
-    key            = "prod/terraform.tfstate"
-    region         = "us-east-1"
-    use_lockfile   = true # S3-native state locking (replaces DynamoDB)
+    bucket       = "my-tfstate"
+    key          = "prod/terraform.tfstate"
+    region       = "us-east-1"
+    use_lockfile = true
   }
 }
 \end{lstlisting}
-
+\subsection{File \& Folder Layout}
+\textbf{Files:} \texttt{terraform.tf} (required\_version/providers), \texttt{backend.tf} (remote state, kept out of VCS), \texttt{providers.tf} (auth/config), \texttt{main.tf} (resources/data), \texttt{variables.tf} (inputs, alphabetical), \texttt{outputs.tf} (returns, alphabetical), \texttt{locals.tf} (derived values), \texttt{override.tf} (loaded last, sparingly). \\
+\textbf{One folder per env} (\texttt{dev/}, \texttt{prod/}) -> separate state files so a corruption hits only one env; shared \texttt{modules/} alongside.
 \subsection{Modules}
-Modules are reusable, parameterized templates (a folder of \texttt{.tf} files) to standardize and DRY up infrastructure. The root config is itself a module and can call child modules:
+Reusable folder of \texttt{.tf} files (root config is itself a module):
 \begin{lstlisting}[language=hcl]
 module "vpc" {
   source = "./modules/vpc" # or registry/git URL
   cidr   = "10.0.0.0/16"   # input variable
-}
-# reference an output: module.vpc.vpc_id
+} # reference an output: module.vpc.vpc_id
 \end{lstlisting}
-
-\subsection{More Commands \& Patterns}
-\texttt{init} does three things: configure the backend, download providers, download modules. \texttt{fmt} formats, \texttt{validate} checks, \texttt{console} opens a REPL (print with \texttt{var.x}). \texttt{state list} lists tracked resources, \texttt{state show <addr>} shows their attributes. Reference any attribute as \texttt{<type>.<name>.<attr>} (e.g. \texttt{aws\_instance.web.public\_ip}).
+\subsection{Patterns \& Recovery}
+\texttt{import} adopts existing infra; \texttt{terraform apply -replace=<addr>} (or legacy \texttt{taint}) forces a destroy+recreate of a single resource. Region-aware AMI via map:
 \begin{lstlisting}[language=hcl]
-import {                # adopt existing infra into state
-  to = aws_instance.web
-  id = "i-0abc123"      # provider-side ID; then: apply
-}                       # CLI: terraform import aws_instance.web i-0abc123
+import { to = aws_instance.web   id = "i-0abc123" }   # then: apply
 
-variable "AMIS" {       # AMIs differ per region -> use a map
-  type    = map(string)
-  default = { us-east-1 = "ami-05b1..." }
-}
-ami = var.AMIS[var.region]   # select AMI for the region
+variable "AMIS" { type = map(string)  default = { us-east-1 = "ami-05b1..." } }
+ami = var.AMIS[var.region]
 \end{lstlisting}
