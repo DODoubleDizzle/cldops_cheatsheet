@@ -1,10 +1,10 @@
 % !TEX TS-program = lualatex
-% NOTE: compile with lualatex (fontspec loads the system-installed Minuscule font)
+% Compile with lualatex (fontspec loads the system-installed Verdana).
 \documentclass[9pt,landscape,a4paper]{extarticle}
 \usepackage[ngerman]{babel}
 \usepackage{fontspec}
-\setmainfont{Verdana}[Scale=0.95]
-\setsansfont{Verdana}[Scale=0.95]
+\setmainfont{Verdana}[Scale=0.92]
+\setsansfont{Verdana}[Scale=0.92]
 
 \input{defs.tex}
 \begin{document}
@@ -12,7 +12,7 @@
 \begin{multicols}{5}
 	\begin{center}
 		{\bfseries\sffamily\large CldOps Cheatsheet}\\
-		{\sffamily\small Doriano Di Pierro \& Fabio Zahner}
+		{\sffamily\small Yanick Egli \& Doriano Di Pierro \& Fabio Zahner}
 	\end{center}
 	\input{inhalt/intro.tex}
 	\input{inhalt/gitlab.tex}
