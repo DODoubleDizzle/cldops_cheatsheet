@@ -1,138 +1,117 @@
 \section{Service Mesh}
 \subsection{Microservices}
-A microservice is a small, independent application that handles one specific business function and communicates with other services via APIs. This approach breaks large applications into smaller, loosely-coupled services that can be developed and deployed independently. Opposite of a Monolith.
-\subsection{Problems with Microservices}
-\textbf{Communication:} Services need to know all the endpoints of services they have to communicate with. A new microservice can result in many changes in existing services.
-\textbf{Security:} Communication in cluster is not secured, every service can talk to every other service in a cluster. Possible attackers have full access.
-\textbf{Monitoring:} Since services are spread out, monitoring can be tedious. Non Business logic must be added to each application, adds complexity.
-\subsection{Service Mesh w/ Sidecar Pattern}
-A Service Mesh uses Sidecars in all the Pods. The sidecars act as a proxy and also include additional functionality (Monitoring, Security, ...)
+Small independent services, one business function, communicate via lightweight APIs. Microservices == distributed computing. \\
+\textcolor{ForestGreen}{\textbf{Pros:}} independent deploy, flexibility, scalability, fault isolation, team autonomy. \\
+\textcolor{red}{\textbf{Cons:}} operational complexity, distributed-system challenges, data consistency, higher resource use. \\
+\textbf{Challenges:} \kf{Communication:} services must know endpoints, new service ripples changes. \kf{Security:} in-cluster traffic unsecured, any pod $\to$ any pod. \kf{Monitoring:} spread out, logic must be added per app.
 
-\textbf{Pros:} + transparent (no app code changes, language-agnostic), + per-pod isolation (a proxy's config/failure is scoped to its pod), + platform team owns cross-cutting concerns (mTLS, retries, routing, telemetry). \\
-\textbf{Cons:} - one proxy per pod $\rightarrow$ CPU/RAM scale with pod count, - extra network hop adds latency, - operational overhead (sidecar injection, proxy upgrade needs a pod restart), - overkill for few services.
+\subsection{Distributed Computing Fallacies}
+Network reliable; latency zero; bandwidth infinite; topology stable; one admin; transport cost zero; network homogeneous. All false $\to$ motivate mesh.
+
+\subsection{Service Mesh}
+Dedicated infra layer handling service-to-service communication: traffic routing, security, observability, resiliency - abstracted from app code. \\
+\textbf{Capabilities:} \kf{Traffic Mgmt} (routing, splitting), \kf{Resilience} (fault tolerance, retries, fallback), \kf{Security} (mTLS, authN/Z), \kf{Observability} (metrics, logs, tracing). \\
+\textbf{Why:} centralized policy, uniform observability, faster incident resolution, transparent security, advanced rollouts (canary/AB), resilience.
+
+\textbf{Components:} \kf{Data Plane:} lightweight proxies (Envoy), handle comm/metrics/security. \kf{Control Plane:} manages config/policies (Istiod), pushes rules to data plane.
+
+\subsection{Mesh Evolution: Library $\to$ Sidecar $\to$ Kernel}
+\textbf{Library:} mesh logic linked into each app, per-language lib (Python, Go, ...). Invasive, language-locked. \\
+\textbf{Sidecar:} proxy per pod, transparent traffic interception, no code change, language-agnostic. Downsides: invasive pod-spec mutation, upgrade = pod restart, large CPU/RAM per pod (worst-case provisioning), extra hop. \\
+\textbf{Kernel/Ambient:} mesh in kernel (eBPF) or per-node agent. 30 pods/node $\to$ 1 proxy/node instead of 30. L7 still typically needs userspace proxy.
+
+\textbf{Leading meshes:} \kf{Istio} (Google, feature-rich), \kf{Linkerd} (lightweight, perf), \kf{Kuma} (CNCF, VMs+containers), \kf{Consul Connect} (HashiCorp, discovery), \kf{Cilium} (eBPF, not dedicated mesh).
+
+\subsection{Sidecar Pattern Pros/Cons}
+\textcolor{ForestGreen}{\textbf{Pros:}} + transparent (no code change, lang-agnostic), + per-pod isolation, + platform team owns cross-cutting (mTLS/retries/routing/telemetry). \\
+\textcolor{Red}{\textbf{Cons:}} - CPU/RAM scales with pod count, - extra hop = latency, - sidecar injection + proxy upgrade needs restart, - overkill for few services.
 
 \includegraphics[width=0.19\textwidth]{ServiceMesh.png}
 
-The two key components of a service mesh are:
-\textit{Data Pane:} Consists of sidecar-proxies in pods which handle communication etc. (Example: Envoy)
-\textit{Control Pane:} Manages and distributes configuration to data pane. (Example: Istiod)
+Envoy proxies authenticate via \textbf{mTLS} (mutual TLS, both sides present certs).
 
-Envoy proxies in each pod authenticate each other via \textbf{mTLS} (mutual TLS: client and server authenticate each other using TLS certificates)
+\subsection{Ambient Mesh (Sidecarless Istio)}
+Sidecar downsides $\to$ ambient: per-node \textbf{zTunnel} agent (L4, mTLS, authN/Z, no HTTP parsing) communicates across nodes via HTTPS CONNECT tunnel. Optional L7 \textbf{Waypoint Proxy} per namespace (Envoy) for rich policies/telemetry. zTunnel alone = L4 metrics only.
 
-\subsection{Ambient Mesh}
-The Traffic Mesh with Sidecar pattern comes with some downsides: It is invasive, can lead to overallocation of resources per pod, breaks traffic.
+\textbf{Slicing:} \kf{Secure Overlay (L4):} TCP routing, mTLS tunneling, simple authZ, TCP metrics. \kf{L7 Processing:} HTTP routing/LB, circuit breaking, rate limiting, fault injection, retry, timeouts, rich authZ, HTTP metrics/access logs/tracing.
 
-Ambient mesh solves this by removing the sidecar proxies, rather providing one zTunnel per node. These zTunnels communicate with across nodes. They operate on Layer 4. zTunnels also authenticate each other using mTLS.
+\textbf{Cilium variant:} dynamic \textbf{eBPF} programs in kernel handle L3/L4 (network path); per-node Envoy proxy for L7 termination when needed. No sidecar, no extra hop for L4.
 
-Additionally, optionally L7 waypoint proxies can be used for policy enforcements.
-
-\subsection{Gateway API \& Ambient Routing}
-Enable ambient on a namespace: \texttt{kubectl label ns x istio.io/dataplane-mode=ambient} (classic sidecar mode uses the \texttt{istio-injection=enabled} label). zTunnel alone gives only L4 metrics; add a \textbf{waypoint} proxy for L7. In ambient the course routes via the K8 \textbf{Gateway API} (\texttt{HTTPRoute}) rather than a VirtualService. Two Deployments behind one Service get $\approx$50/50 by default (plain K8 load balancing); override with weights. Best practice: a \texttt{version} label per Deployment (routing + tracing).
+\subsection{Gateway API \& Ambient Routing / GAMMA}
+Enable ambient: \texttt{kubectl label ns x istio.io/dataplane-mode=ambient} (sidecar mode: \texttt{istio-injection=enabled}). Routes via K8s \textbf{Gateway API} (\texttt{HTTPRoute}) not VirtualService. Two Deployments behind one Service $\approx$50/50 default; override via weights. Best practice: \texttt{version} label per Deployment. \\
+\textbf{GAMMA} (Gateway API for Mesh Management \& Administration): Gateway API for east/west (mesh) traffic, not just north/south (ingress). Adopted by more meshes.
 \begin{lstlisting}[language=yaml]
-# weighted canary (90/10) via HTTPRoute:
+# weighted canary 90/10:
 - backendRefs:
   - { name: frontend,    port: 5000, weight: 90 }
   - { name: frontend-v2, port: 5000, weight: 10 }
-# traffic mirror/shadow (copy to v2, response dropped):
+# mirror/shadow (copy to v2, drop response):
 - backendRefs:
   - { name: frontend, port: 5000 }
   filters:
   - type: RequestMirror
-    requestMirror:
-      backendRef: { name: frontend-v2, port: 5000 }
+    requestMirror: { backendRef: { name: frontend-v2, port: 5000 } }
 \end{lstlisting}
-\textbf{istio-system pods:} Istiod (control plane), Ingress Gateway (Envoy entrypoint), Prometheus, Grafana, Jaeger (tracing), Kiali (dashboard). \\
-\textbf{Kiali graph shapes:} rectangle = application, triangle = Service, square = workload/pod.
+\textbf{istio-system pods:} Istiod, Ingress Gateway (Envoy), Prometheus, Grafana, Jaeger, Kiali. \textbf{Kiali shapes:} rectangle=app, triangle=Service, square=workload/pod.
 
-\subsection{Traffic Management}
-In istio, K8 ingress/egress are replaced by gateways, as they allow for more control.
-A VirtualService binds to a gateway and determines how traffic is routed to services.
-DestinationRules apply policies \textit{after} routing: load balancing, connection pool, outlier detection (circuit breaking), TLS mode, and define \textit{subsets} (e.g. versions) that VirtualServices route to.
+\subsection{Traffic Management (Istio Classic)}
+Gateway replaces K8s ingress/egress. VirtualService binds gateway, routes to services. DestinationRule applies post-routing policy: LB, connection pool, outlier detection (circuit breaking), TLS mode, defines subsets (versions).
 \begin{lstlisting}[language=yaml]
 apiVersion: networking.istio.io/v1beta1
 kind: Gateway
-metadata:
-  name: my-gateway
+metadata: { name: my-gateway }
 spec:
-  selector:
-    istio: ingressgateway
+  selector: { istio: ingressgateway }
   servers:
-  - port:
-      number: 80
-      name: http
-      protocol: HTTP
-    hosts:
-    - "example.com"
+  - port: { number: 80, name: http, protocol: HTTP }
+    hosts: ["example.com"]
 --
-apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
-metadata:
-  name: my-vs
+metadata: { name: my-vs }
 spec:
-  hosts:
-  - "example.ch" # must match a gateway host
-  gateways:
-  - my-gateway
+  hosts: ["example.ch"]   # must match gateway host
+  gateways: [my-gateway]
   http:
   - route:
     - destination:
         host: my-service
-        weight: 99 # if a second destination is defined, weight can be used to split traffic accordingly
-        port:
-          number: 80
+        weight: 99        # split traffic if 2nd dest defined
+        port: { number: 80 }
 --
-apiVersion: networking.istio.io/v1beta1
 kind: DestinationRule
-metadata:
-  name: my-dr
+metadata: { name: my-dr }
 spec:
   host: my-service
   trafficPolicy:
-    tls:
-      mode: ISTIO_MUTUAL
+    tls: { mode: ISTIO_MUTUAL }
 \end{lstlisting}
 
-\subsection{Service Resiliency}
-Istio allows for:
-\textbf{Fault Injection:} Simulate networking failures to test error-handling.
-\textbf{Timeouts:} Times out requests after a certain time to avoid queuing up a lot of requests.
-\textbf{Retries:} Configure services to retry if another service cannot be reached.
+\subsection{Resilience \& Use Cases}
+\textbf{Fault Injection:} simulate net failures, test error handling. \textbf{Timeouts:} cap request time, avoid queue buildup. \textbf{Retries:} auto-retry on failure. \\
+\textbf{Cascading Failure:} one service dies $\to$ callers pile up $\to$ whole graph red. \\
+\textbf{Circuit Breaking:} trip on errors/outlier $\to$ prevent cascading failure (DestinationRule outlierDetection). \\
+\textbf{Rate Limiting:} cap RPS, protect downstream from overload. \\
+\textbf{Zero-Trust:} encrypt + authenticate every call, no implicit trust in cluster. \\
+Istio exports Prometheus metrics by default.
 
-Istio also allows all the CD\&D Deployment Strategies (see \textit{General Definitions})
-
-Istio provides and exports Prometheus metrics per default.
+\subsection{Deployment Strategies}
+\textbf{Rolling:} gradual pod replace, default K8s. \textbf{Recreate / Big-bang:} kill all, deploy new (downtime). \textbf{Canary:} small \% to v2, watch, ramp up. \textbf{Blue/Green:} two envs, switch traffic atomically, easy rollback. \textbf{Dark Launching / Shadow:} mirror prod traffic to v2, drop response (test under real load). See \kf{General Definitions}.
 
 \subsection{Security}
-\textbf{Authentication:} Services use mTLS to authenticate each other. \\
-\textbf{Authorization:} Using AuthorizationPolicies, we get Fine-grained access control using Role-based access control (RBAC).
-
+\textbf{AuthN:} mTLS between services. \textbf{AuthZ:} AuthorizationPolicy = fine-grained RBAC.
 \begin{lstlisting}[language=yaml]
-# Namespace-wide mTLS enforcement using PeerAuthentication
-apiVersion: security.istio.io/v1beta1
+# enforce mTLS in namespace
 kind: PeerAuthentication
-metadata:
-  name: default
-  namespace: production  # Replace with your target namespace
+metadata: { name: default, namespace: production }
 spec:
-  mtls:
-    mode: STRICT
+  mtls: { mode: STRICT }
 --
-apiVersion: security.istio.io/v1beta1
 kind: AuthorizationPolicy
-metadata:
-  name: require-jwt
-  namespace: foo
+metadata: { name: require-jwt, namespace: foo }
 spec:
-  selector:
-    matchLabels:
-      app: httpbin # applies to these pods in namespace foo
+  selector: { matchLabels: { app: httpbin } }
   action: ALLOW
   rules:
-  - from:
-    - source:
-        namespaces: ["frontend"] # allows traffic from frontend NS
-    to:
-    - operation:
-        methods: ["GET"]
-        paths: ["/headers"] # allows traffic to
+  - from: [{ source: { namespaces: ["frontend"] } }]
+    to:   [{ operation: { methods: ["GET"], paths: ["/headers"] } }]
 \end{lstlisting}
