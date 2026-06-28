@@ -1,79 +1,64 @@
 \section{Ansible}
-Ansible can be used to provision servers. It does not have statefiles and is idempotent, meaning it won't make changes unless it has to. Ansible requires python to be installed on target machines as well as control machines (host). \\
-\textbf{Terraform vs. Ansible:} Terraform \textit{provisions} infrastructure (create VMs, networks); Ansible \textit{configures} the provisioned machines (install \& configure software, deploy code). Often combined. Ansible is \textit{agentless} \& \textit{push-based}: over SSH it copies the generated Python module to a temp dir (\texttt{\textasciitilde/.ansible/tmp}) on the target, runs it with the remote Python, returns the result as JSON on stdout, then deletes it, nothing stays installed.
-\subsection{Infrastructure}
-In a network of servers, one server is the \textbf{host}. The host can connect to other machines using SSH. On the host, playbooks can be written in \texttt{yaml} files. Run a playbook by using \texttt{ansible-playbook playbook.yaml} \\
-\textbf{Inventory:} lists the managed hosts, grouped, in INI or YAML format. Referenced by a play's \texttt{hosts:} field.
+Configures provisioned machines (install/configure software, deploy code); \textit{after} provisioning. Idempotent (no-op if already in desired state), agentless, push-based, no statefile/locking. Needs Python on host \& targets. Other CM tools: \textbf{Puppet}, \textbf{Chef}, \textbf{CFEngine}, \textbf{Juju}. \\
+\textbf{TF vs Ansible:} TF = provisioning, declarative, state, idempotent. Ansible = CM, \textit{hybrid} (imperative tasks, declarative modules), no lifecycle, idempotency \textit{optional}. Both: templating, agentless, OSS. Often combined.\\
+\textbf{Execution:} over SSH, copies generated Python module to \texttt{\textasciitilde/.ansible/tmp} on target, runs with remote Python, returns JSON on stdout, deletes. Nothing stays installed. \textbf{Exceptions:} \texttt{raw} module runs cmd via SSH (no Python needed, e.g. bootstrap); \texttt{connection: local} runs on controller (network devices); Windows via \textbf{WinRM}.
+\subsection{Initial Setup \& Inventory}
+\texttt{ssh-keygen -t ed25519 -C "x@y"} on controller, \texttt{ssh-copy-id user@server}, test with \texttt{ansible all -m ping}. \\
+\textbf{Inventory} (INI or YAML) lists managed hosts grouped, referenced by play's \texttt{hosts:}. \texttt{ansible-inventory -i inv --list} verifies it.
 \begin{lstlisting}
 [web]
 web1.example.com
 web2.example.com ansible_host=10.0.0.5
-
 [web:vars]
 ansible_user=deploy
 \end{lstlisting}
-
+\subsection{Playbooks, Plays \& Tasks}
+YAML file = playbook (1..n plays); play = hosts + tasks; task = one module call. Run: \texttt{ansible-playbook -i inv playbook.yml}. Flags: \texttt{--check} (dry run), \texttt{--list-tasks} (preview), \texttt{--tags}/\texttt{--skip-tags}, \texttt{--ask-vault-pass}.
 \begin{lstlisting}[language=yaml]
 - name: Example Playbook
   hosts: web
-  become: true             # run tasks as root (sudo)
-  gather_facts: false      # skip the implicit setup/fact gathering (faster)
+  become: true             # sudo
+  gather_facts: false      # skip setup (faster)
+  force_handlers: true     # run handlers even if a task fails
   vars:
-    packages:
-      - nginx
-      - curl
-    enable_service: true
-    secret_password: "{{ vault_password }}"
+    packages: [nginx, curl]
+    secret: "{{ vault_password }}"
   roles:
     - myrole
   tasks:
-    - name: Install packages
-      apt:
-        name: "{{ item }}"
+    - name: Install packages    # list-as-option > loop (faster, deps OK)
+      ansible.builtin.apt:      # FQCN: namespace.collection.module
+        name: "{{ packages }}"
         state: present
-      loop: "{{ packages }}"
       notify: restart nginx
-    - name: Configure app if enabled
-      template:
-        src: app.conf.j2
-        dest: /etc/app.conf
+    - name: Render config
+      ansible.builtin.template: { src: app.conf.j2, dest: /etc/app.conf }
       when: enable_service
       tags: config
   handlers:
     - name: restart nginx
-      service:
-        name: nginx
-        state: restarted
+      ansible.builtin.service: { name: nginx, state: restarted }
 \end{lstlisting}
-\subsection{Vaults}
-Vaults can be used to encrypt data: The file \texttt{vault.yaml} with the contents \texttt{vault\string_password: "mysecret"} can be encrypted using \texttt{ansible-vault encrypt vault.yml} and then included in a play: \texttt{ansible-playbook playbook.yml --ask-vault-pass}
-To create a file, use \texttt{ansible-vault create foo.yaml} \\
-Once encrypted the file is just ciphertext, so committing it to Git is safe \& intended -- only the vault password must stay out of the repo.
-\subsection{Collections, Roles \& Tags}
-
-\textbf{Collections} are bundles of plugins, roles and modules. Install them using \texttt{ansible-galaxy collection install <name>}, or define a requirements.yaml to install multiple collections at once.
-\textbf{Roles} are an abstraction above playbooks, allowing to reuse configuration steps: create a role using \texttt{ansible-galaxy init <name>}, then use a role like in the example above.
-\textbf{Tags} can be used to execute a subset of tasks instead of the whole playbook. Run only specific tags by appending \texttt{--tags <name>} at the end of the ansible-playbook command. There are also two special commands: Tag \textit{always} runs every time, except when explicitly skipped: \texttt{--skip-tags=always}. Tag \textit{never} does not run unless specified with \texttt{--tags=never}
-\subsection{Ad-hoc, Modules \& Error Handling}
+\subsection{Ad-hoc, Modules \& Errors}
 \textbf{Ad-hoc} (one module, no playbook): \texttt{ansible -i inv -m <module> -a '<args>' <target>}. The \texttt{setup} module gathers \textit{facts} (what "Gathering Facts" runs before tasks). \texttt{command} vs \texttt{shell}: \texttt{shell} allows pipes/redirects/vars; \textit{neither is idempotent}. \texttt{ansible-inventory -i inv --list} verifies the inventory; \texttt{--check} is a dry run. A playbook stops at the first failed task unless \texttt{ignore\_errors: true}.
 \begin{lstlisting}[language=yaml]
-# ansible -i inv -m ping all
-# ansible -i inv -m setup all   # gather facts
-- name: validate config
-  command: httpd -t
-  register: out          # capture result into a var
+- name: validate
+  ansible.builtin.command: httpd -t
+  register: out
   changed_when: out.failed
-  ignore_errors: true
-- fail: { msg: "bad config" }
-  when: out.failed
-- file: { path: /data, state: directory } # state: file|link|touch|absent
-- lineinfile: { path: /etc/x.conf, line: "Include sites/*" }
+  failed_when: false
+- ansible.builtin.file: { path: /data, state: directory } # file|link|touch|absent
+- ansible.builtin.lineinfile: { path: /etc/x.conf, line: "Include sites/*" }
 \end{lstlisting}
-
-\subsection{Jinja2}
-Jinja2 is the templating engine which is used by Ansible. It is used to generate configuration files. Loop over an inventory group inside a \texttt{.j2} template (e.g. to build a load-balancer config); \texttt{\{\{ inventory\_hostname \}\}} is the current target.
+\subsection{Vault, Collections, Roles \& Tags}
+\textbf{Vault}: \texttt{ansible-vault create|edit|view|encrypt foo.yml}; \texttt{encrypt\_string 'secret' --name 'pw'} inlines a single var. Pass via \texttt{--vault-id @prompt|/path/file|name@script}. Ciphertext safe to commit. \\
+\textbf{Collections} are bundles of modules/roles/plugins. FQCN \texttt{ns.coll.mod} (e.g. \texttt{cisco.ios.ios\_banner}); independent versioning. Install: \texttt{ansible-galaxy collection install <n>} or via \texttt{requirements.yml} (\texttt{collections:} + \texttt{roles:}) then \texttt{install -r}. Sources: \textbf{Galaxy} (community), \textbf{Automation Hub} (RedHat, certified). \\
+\textbf{Roles}: \texttt{ansible-galaxy init <n>} creates dirs \texttt{tasks/ handlers/ defaults/ vars/ files/ templates/ meta/ tests/}; use via \texttt{roles:} list. \\
+\textbf{Tags} can be used to execute a subset of tasks instead of the whole playbook. Run only specific tags by appending \texttt{--tags <name>} at the end of the ansible-playbook command. There are also two special commands: Tag \textit{always} runs every time, except when explicitly skipped: \texttt{--skip-tags=always}. Tag \textit{never} does not run unless specified with \texttt{--tags=never}
+\subsection{Jinja2 Templating}
+Rendered on \textbf{controller}, only result sent to target. \texttt{\{\{ inventory\_hostname \}\}} = current target. Filters: \texttt{ipaddr}/\texttt{ipv4}/\texttt{ipv6} (validate/version), \texttt{hash('sha1')}, \texttt{default(x)}, \texttt{min}/\texttt{max}/\texttt{shuffle}.
 \begin{lstlisting}[language=yaml]
 {% for host in groups['webservers'] %}
-BalancerMember http://{{ host }}
+BalancerMember http://{{ host }}:{{ port | default(80) }}
 {% endfor %}
 \end{lstlisting}
