@@ -1,113 +1,82 @@
 \section{Kubernetes (K8)}
 \begin{mdframed}
-  \textbf{K8 Objects:} Persistent entities which signal an intent (e.g. for something to be created on the cluster) \\
-  \textbf{K8 Controller:} Tracks an Object and is responsible for bringing the current State closer to the desired State.
+  \textbf{Object:} persistent record-of-intent. \textbf{Controller:} reconciles current $\rightarrow$ desired state.
 \end{mdframed}
 
-\textbf{Pod:} Represents a process running on your cluster. Should contain one container, multiple are possible. \\
-\textbf{Sidecars:} Sidecars are containers that run along the primary container in the same pod. Example use cases might be logging, security, data synchronization. \\
-\textbf{Init Containers:} Similar to sidecars, but run and finish before app containers.
-\textbf{Volume:} Assigns physical Storage to a Pod.
-\textbf{Ingress:} Provides external Access to a Service. \\
-\textbf{ReplicaSet:} Makes sure that a specified number of replica pods are running. In practice, deployments are used. \\
-\textbf{Deployment:} Allows to manage one or multiple Pods. \\
-\textbf{Service:} API Resource to expose logical set of Pods in the namespace. Acts as a load balancer (round-robin). \\
-\textbf{DaemonSet:} Ensures that all (or some) Nodes run a copy of a pod. This can be used for running supporting applications (logs, storage) \\
-\textbf{ConfigMap:} Stores configuration data as key-value pairs. Used to decouple config from code. Mounted into pods as env vars or files. Not meant for sensitive data (use Secrets instead).\\
-\textbf{Secret:} Like a ConfigMap but for sensitive data (passwords, tokens, certs). Values are only base64-encoded, \textit{not} encrypted by default (enable encryption at rest / use an external secret store). Mounted as env vars or files.
+\subsection{Architecture}
+\textbf{Control plane:} \texttt{kube-apiserver} (REST front), \texttt{etcd} (KV store), \texttt{kube-scheduler} (pod $\rightarrow$ node), \texttt{kube-controller-manager} (built-in controllers), \texttt{cloud-controller-manager} (cloud glue, optional). \textbf{Node:} \texttt{kubelet} (runs pods via container runtime), \texttt{kube-proxy} (Service networking/iptables).
+
+\subsection{Objects}
+\textbf{Pod:} smallest unit, 1+ containers share net/storage. \textbf{Sidecar:} container running alongside main in same pod (logs, proxy). \textbf{Init container:} runs to completion before main. \textbf{ReplicaSet:} keeps N pod replicas (rarely used directly). \textbf{Deployment:} manages ReplicaSets, rolling updates, rollback. \textbf{StatefulSet:} ordered pods with stable identity + per-pod PVC (DBs, brokers). \textbf{DaemonSet:} one pod per (matching) node -- logs, CNI, monitoring. \textbf{Service:} stable VIP/DNS + LB over pod set. \textbf{Ingress:} L7 HTTP(S) entrypoint. \textbf{Volume:} dir mounted into pod. \textbf{ConfigMap:} non-secret KV config. \textbf{Secret:} sensitive KV, base64-encoded, \textit{not} encrypted by default. \textbf{HPA:} autoscales replicas on metrics.
 \begin{lstlisting}[language=yaml]
 apiVersion: apps/v1
 kind: Deployment
-metadata:
-  name: app
+metadata: { name: app }
 spec:
-replicas: 3 # automatically deploys replicaset
-selector:
-  matchLabels:
-    app: web
-template:
-  metadata: # pod
-    labels:
-      app: web
-  spec:
-    strategy:
-      type: RollingUpdate # rolling update
-      rollingUpdate:
-        maxUnavailable: 1
-        maxSurge: 1
-    initContainers:
-    - name: init
-      image: busybox
-      command: ['sh', '-c', 'sleep 10']
-    containers: # container
-    - name: web
-      image: nginx
-      ports:
-      - containerPort: 80
-    - name: sidecar
-      image: busybox
-      command: ['sh', '-c', 'while true; do sleep 30; done']
+  replicas: 3
+  selector: { matchLabels: { app: web } }
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 1, maxSurge: 1 }
+  template:
+    metadata: { labels: { app: web } }
+    spec:
+      initContainers:
+      - { name: init, image: busybox, command: ['sh','-c','sleep 10'] }
+      containers:
+      - name: web
+        image: nginx
+        ports: [{ containerPort: 80 }]
+      - { name: sidecar, image: busybox, command: ['sh','-c','while true; do sleep 30; done'] }
 \end{lstlisting}
 
 \subsection{Services}
-A Service gives a stable virtual IP + DNS name to a dynamic set of Pods (selected by labels) and load-balances across them (round-robin). Types: \\
-\textbf{ClusterIP:} (default) internal-only IP, reachable inside the cluster. \\
-\textbf{NodePort:} opens a static port on every node, exposing the Service via \texttt{<NodeIP>:<port>}. \\
-\textbf{LoadBalancer:} provisions an external (cloud) load balancer with a public IP that routes to the Service. \\
-\textbf{Ingress} routes external HTTP(S) by host/path to Services (single entrypoint, needs an ingress controller). The newer \textbf{Gateway API} (\texttt{Gateway} + \texttt{HTTPRoute}) replaces Ingress with a more expressive, role-oriented model. \\
-\textit{Port trap:} Service \texttt{port} (its own) vs \texttt{targetPort} (the container) vs \texttt{nodePort}; an Ingress/HTTPRoute backend must reference the \textit{Service} port, not the container port.
+Give stable virtual IP + DNS over label-selected pods, round-robin LB. \textbf{ClusterIP} (default) internal only; \textbf{NodePort} static port on every node \texttt{<NodeIP>:<port>}; \textbf{LoadBalancer} cloud LB w/ public IP; \textbf{ExternalName} CNAME alias to external DNS (no proxy). \textbf{Ingress} routes HTTP(S) by host/path (needs controller: Nginx, Traefik). \textbf{Gateway API} (\texttt{Gateway}+\texttt{HTTPRoute}/\texttt{TLSRoute}) -- modern, multi-protocol, role-oriented Ingress replacement. \textit{Port trap:} Service \texttt{port} vs \texttt{targetPort} (container) vs \texttt{nodePort}; Ingress backend refs Service port.
 
-\subsection{Using ConfigMaps \& Secrets}
+\subsection{ConfigMaps \& Secrets}
 Inject into Pods as a single env var (\texttt{configMapKeyRef}/\texttt{secretKeyRef}), all keys at once (\texttt{envFrom}), or mounted as files (volume).
 \begin{lstlisting}[language=yaml]
 env:
 - name: APIKEY
-  valueFrom:
-    configMapKeyRef: { name: cfg, key: api-key }
+  valueFrom: { configMapKeyRef: { name: cfg, key: api-key } }
 envFrom:
-- configMapRef: { name: cfg }   # import every key as env var
+- configMapRef: { name: cfg }
 volumeMounts:
 - { name: v, mountPath: /etc/cfg }
 volumes:
-- name: v
-  configMap: { name: cfg }      # or: secret: { secretName: s }
+- { name: v, configMap: { name: cfg } }  # or: secret: { secretName: s }
 \end{lstlisting}
+
+\subsection{Storage: PV, PVC, StorageClass}
+Container FS is ephemeral. \textbf{Volume:} dir in pod, lives w/ pod (\texttt{emptyDir}, \texttt{hostPath}, NFS, \dots). \textbf{PersistentVolume (PV):} cluster-scoped piece of external storage. \textbf{PersistentVolumeClaim (PVC):} namespaced request for storage (size, accessMode); binds to a matching PV. \textbf{StorageClass:} dynamic provisioner -- creates a PV on-demand if no static PV matches (e.g. \texttt{gp3}, \texttt{standard-rwo}).
 
 \subsection{LimitRange \& ResourceQuota}
-\textbf{LimitRange:} min/max + default requests/limits \textit{per container} in a namespace; a Pod outside the range is \textit{rejected}, and a container omitting requests/limits gets the defaults auto-injected. \\
-\textbf{ResourceQuota:} caps the \textit{summed} resources of a \textit{whole namespace}; a Pod that would exceed the total is rejected.
+\textbf{LimitRange:} per-container min/max + default req/lim in NS; out-of-range Pod rejected, missing req/lim auto-injected. \textbf{ResourceQuota:} caps summed NS usage; over-quota Pod rejected.
 
 \subsection{Namespaces}
-Used to separate resources. Only resources in same namespace can communicate directly.
+Logical isolation in one cluster (RBAC, quotas). Namespaced (Pods, Services) isolated; cluster-wide (Nodes, PV) shared. Defaults: \texttt{default}, \texttt{kube-system}, \texttt{kube-public}, \texttt{kube-node-lease}.
 
 \subsection{Rolling Updates}
-Rolling updates can be used in order to ensure that enough pods are always running.
-Rolling updates can be using maxUnavailable (maximum No. of Pods upgrading at the same time) and maxSurge (max No. of Pods allowed to run beyond specified No. of replica)
+Deployment ensures availability during change. \textbf{Recreate:} kill all $\rightarrow$ recreate (downtime). \textbf{RollingUpdate} (default): tuned by \texttt{maxUnavailable} (max pods down) + \texttt{maxSurge} (max extra pods). \texttt{kubectl rollout history/undo} for revisions.
 
 \subsection{Scheduling}
-The \texttt{kube-scheduler} determines which nodes run which Pods. We can influence this decision process:
-
+\texttt{kube-scheduler} picks node via \textbf{Filtering} then \textbf{Scoring}. \\
+\textit{Filtering} (feasibility): PodFitsHostPorts, PodFitsResources, PodMatchNodeSelector, CheckNodeDiskPressure, CheckVolumeBinding. \\
+\textit{Scoring} (rank): SelectorSpreadPriority (spread same Service/STS/RS), LeastRequestedPriority (free resources), NodeAffinityPriority.
 \begin{lstlisting}[language=yaml]
-kind: Pod
 spec:
-  nodeSelector:
-    disktype: ssd # this label needs to be in pod.spec
+  nodeSelector: { disktype: ssd }
 \end{lstlisting}
-
-To evaluate if a Node is eligible to run a Pod, the following things are considered: Port availability, CPU \& Memory resources, available volumes, specified labels. Additionally, scoring is used to evaluate remaining nodes with criteria: pods of same service should be on different nodes, nodes with few used resources are prioritized, node affinity. \\
-\textit{Taints} can also be applied on nodes and pods, pods won't be deployed on nodes with matching taints. \textit{Tolerations} can be used to make exceptions to taints. Types of taints: \textit{NoSchedule, PreferNoSchedule, NoExecute} \\
-CLI: \texttt{kubectl taint nodes <n> gpu=true:NoSchedule} and \texttt{kubectl label nodes <n> disktype=ssd} (remove either by appending a trailing \texttt{-}). \textit{Gotcha:} a toleration only \textit{allows} a Pod onto a tainted node, it does not \textit{force} it there -- pair it with a \texttt{nodeSelector}/affinity to actually pin the Pod.
+\textbf{Taints} on nodes repel pods; \textbf{Tolerations} on pods allow (don't force) them onto tainted nodes -- pair w/ \texttt{nodeSelector}/affinity to pin. Effects: \textit{NoSchedule, PreferNoSchedule, NoExecute} (evict). No effect on DaemonSets. \\
+CLI: \texttt{kubectl taint nodes <n> gpu=true:NoSchedule}, \texttt{kubectl label nodes <n> disktype=ssd} (trailing \texttt{-} removes).
 \begin{lstlisting}[language=yaml]
 tolerations:
 - { key: "gpu", operator: "Equal", value: "true", effect: "NoSchedule" }
 \end{lstlisting}
+\textbf{cordon/drain:} \texttt{kubectl cordon <n>} marks unschedulable (existing stay); \texttt{drain <n>} also evicts pods (maintenance); \texttt{uncordon <n>} reverts.
 
 \subsection{Probes \& Resources}
-The kubelet uses probes (\texttt{httpGet}, \texttt{tcpSocket} or \texttt{exec}) to check container health: \\
-\textbf{Liveness:} is it alive? On failure $\rightarrow$ restart the container. \\
-\textbf{Readiness:} is it ready to serve? On failure $\rightarrow$ remove pod from Service endpoints (no traffic), but don't restart. \\
-\textbf{Startup:} guards slow-starting apps; disables the other probes until it succeeds. Repeated liveness failures $\rightarrow$ container restarted with exponential back-off $\rightarrow$ \texttt{CrashLoopBackOff}. \\
-\textbf{requests:} guaranteed minimum the scheduler reserves (used for placement). \textbf{limits:} hard ceiling -- CPU is throttled, memory over-limit $\rightarrow$ OOMKilled.
+kubelet probes via \texttt{httpGet}/\texttt{tcpSocket}/\texttt{exec}. \textbf{Liveness:} fail $\rightarrow$ restart. \textbf{Readiness:} fail $\rightarrow$ remove from Service endpoints. \textbf{Startup:} guards slow boots, disables others until OK. Repeated liveness fail $\rightarrow$ exp backoff $\rightarrow$ \texttt{CrashLoopBackOff}. \textbf{requests:} reserved min (scheduling). \textbf{limits:} ceiling -- CPU throttled, memory over-limit $\rightarrow$ OOMKilled.
 \begin{lstlisting}[language=yaml]
 resources:
   requests: { cpu: "250m", memory: "64Mi" }
@@ -121,10 +90,13 @@ readinessProbe:
 \end{lstlisting}
 
 \subsection{Commands}
-Apply a manifest.yaml: \texttt{kubectl \{create|apply|replace\} -f manifest.yaml} \\
-Generate YAML w/o applying: \texttt{kubectl create deploy web --image=nginx --dry-run=client -o yaml > d.yaml} \\
-Imperative: \texttt{kubectl run}, \texttt{kubectl scale deploy x --replicas=4}, \texttt{kubectl expose} \\
-Inspect: \texttt{kubectl get pods -A -o wide}, \texttt{describe node <n>}, \texttt{get nodes --show-labels} \\
-Connecting to a Pod: \texttt{kubectl exec -it nginx-xxx -- sh} (drop \texttt{-it} for one-shot) \\
-Rollout: \texttt{kubectl rollout \{status|history\} deploy x}, \texttt{rollout undo deploy x --to-revision=N} \\
-Default namespace: \texttt{kubectl config set-context --current --namespace=lab}
+\textbf{Apply:} \texttt{kubectl \{create|apply|replace\} -f manifest.yaml} \\
+\textbf{Gen YAML:} \texttt{kubectl create deploy web --image=nginx --dry-run=client -o yaml > d.yaml} \\
+\textbf{Imperative:} \texttt{kubectl run}, \texttt{scale deploy x --replicas=4}, \texttt{expose} \\
+\textbf{Update image:} \texttt{kubectl set image deploy/x web=nginx:1.27} \\
+\textbf{Autoscale:} \texttt{kubectl autoscale deploy x --cpu-percent=50 --min=1 --max=10} \\
+\textbf{Inspect:} \texttt{kubectl get pods -A -o wide}, \texttt{describe node <n>}, \texttt{get nodes --show-labels} \\
+\textbf{Exec:} \texttt{kubectl exec -it nginx-xxx -- sh} (drop \texttt{-it} for one-shot) \\
+\textbf{Rollout:} \texttt{kubectl rollout \{status|history\} deploy x}, \texttt{rollout undo deploy x --to-revision=N} \\
+\textbf{Node ops:} \texttt{kubectl cordon|uncordon|drain <n>} \\
+\textbf{Default ns:} \texttt{kubectl config set-context --current --namespace=lab}
