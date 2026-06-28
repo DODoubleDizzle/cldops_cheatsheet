@@ -1,74 +1,67 @@
 \section{Kustomize}
-
-The kustomize.yaml defines the resources and transformations. \textit{Transformers} transform your manifests by allowing common fields in the resources to be specified in one place.
-
-In case you want multiple variations on a common resource, the files in \texttt{base/} can declare common elements and the files in \texttt{overlays/} will declare differences.
-
-\textbf{Patches} allow you to change (patch) already set values.
-
-Traditionally, when editing ConfigMaps or Secrets, the deployment did not change, therefore no pods were restarted. \textbf{Generators} allow to define values in the \texttt{kustomize.yaml} file, where changes get detected and pods automatically restarted.
-\begin{lstlisting}[language=yaml]
-# A sample kustomize.yaml file
-apiVersion: kustomize.config.k8s.io/v1
-kind: Kustomization
-resources:
-  - deployment.yaml
-  - service.yaml
-# Transformers:
-namePrefix: dev-
-namespace: my-namespace
-commonLabels:
-  app: my-app
-# Patch:
-patches:
-- patch: |-
-    - op: replace
-      path: /metadata/name
-      value: nginx-server
-  target:
-    kind: Service
-    name: nginx-app
-# Generator:
-configMapGenerator:
-  - name: app-config
-    literals:
-      - LOG_LEVEL=debug
-# Adding component from component example below
-components:
-- ../../components/mysql
-\end{lstlisting}
-
-\subsection{Components}
-
-Components encapsulate a set of modifications. Below is an example component which adds a mysql database. This component can then be included in overlays, base directories (see above) or other components.
-
-\begin{lstlisting}[language=yaml]
-# Sample component file. Path: components/mysql/kustomization.yaml
-apiVersion: kustomize.config.k8s.io/v1alpha1
-kind: Component # not Kustomization
-resources: # resource files are also under /mysql/
-- deployment.yaml
-- service.yaml
-\end{lstlisting}
+Template-free overlay tool, built into kubectl (\texttt{-k}). \texttt{kustomization.yaml} lists \textbf{resources} + declarative \textbf{transformers} (cross-cutting fields) + \textbf{patches} (partial spec edits) + \textbf{generators}.
+\textcolor{ForestGreen}{\textbf{Pros:}} pure YAML, native to kubectl, easy diff/review, easy to learn.
+\textcolor{red}{\textbf{Cons:}} less powerful than Helm, no deps mgmt, hard to package/distribute, limited conditionals.
+\textbf{Use for:} env-specific configs (dev/prod), avoiding templating. Often combined with Helm.
 
 \subsection{Commands}
-
 \begin{lstlisting}[language=sh]
-kustomize build <dir> # Renders manifests.
-kubectl apply -k <dir> # Applies kustomization via kubectl.
+kustomize create --resources deploy.yaml,svc.yaml   # scaffold
+kustomize edit add resource|set image|add label|remove resource
+kustomize build <dir>            # render to stdout
+kustomize build <dir> | kubectl apply -f -
+kubectl apply -k <dir>           # native
+kubectl kustomize <dir>          # render only (no apply)
+kubectl delete -k <dir>
+kustomize cfg fmt <dir>          # format yaml
+kustomize localize <dir>         # bundle remote URLs/git locally
+kustomize edit fix               # auto-migrate deprecated syntax
 \end{lstlisting}
 
-\subsection{Images \& Overlays}
-The \textbf{images} transformer changes a container's tag/name without touching the Deployment. \texttt{configMapGenerator}/\texttt{secretGenerator} can also read from \texttt{files:} (not just \texttt{literals:}) to keep config in one place. An overlay pulls in the shared base via \texttt{resources: [../base]}.
+\subsection{kustomize.yaml}
+\textbf{Deprecated $\to$ new:} \\
+\texttt{commonLabels} $\to$ \texttt{labels}\\
+\texttt{patchesStrategicMerge}/ \\ \texttt{patchesJson6902} $\to$ \texttt{patches}\\
+\texttt{bases:} $\to$ inside \texttt{resources:}
 \begin{lstlisting}[language=yaml]
-images:
-- name: myrepo/app   # existing image (no tag)
-  newTag: "0.2.0"    # or newName: otherrepo/app
-configMapGenerator:
-- name: env-cfg
-  files: [config.env]
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources: [../../base, storage.yaml]     # files, dirs, URLs
+namespace: prod                           # transformers
+namePrefix: dev-
+nameSuffix: -v1
+commonAnnotations: {version: 1.0.0}
+labels:                                   # replaces commonLabels
+- includeSelectors: true
+  pairs: {app.kubernetes.io/name: hello}
+images:                                   # change tag/name w/o editing Deployment
+- {name: nginx, newName: bitnami/nginx, newTag: latest}
+patches:                                  # strategic or JSON6902
+- target: {kind: Service, name: nginx-app}
+  patch: |-
+    - {op: replace, path: /metadata/name, value: nginx-server}
+configMapGenerator:                       # hash suffix appended -> change forces rolling restart
+- name: app-config
+  literals: [LOG_LEVEL=debug]
+  files: [config.env]                     # or files:
+secretGenerator:                          # base64-encodes; same hash mechanism
+- {name: ex-secret, literals: [user=admin, pass=secret]}
+components: [../../components/mysql]
 \end{lstlisting}
-Render without applying: \texttt{kubectl kustomize <dir>}. Tear down: \texttt{kubectl delete -k <dir>}.
+\textbf{ConfigMap/Secret modes:} (1) \textit{Traditional}: declare as resource $\to$ change does \textbf{not} restart pods (silent drift). (2) \textit{Generator}: \texttt{configMapGenerator}/\texttt{secretGenerator} appends content hash to name $\to$ references rewritten $\to$ pods rolling-restart on change.
+
+\subsection{Bases, Overlays, Components}
+\textbf{Base:} common (\texttt{base/} with \texttt{kustomization.yaml}). \textbf{Overlay:} env-specific dir (\texttt{overlays/dev}, \texttt{overlays/prod}) that lists base in \texttt{resources:} + adds patches/transformers $\to$ produces a \textbf{variant}. \textbf{Component:} \texttt{kind: Component} (\texttt{v1alpha1}); reusable mix-in chunk (resources+patches+generators), included via \texttt{components:} in overlays. \texttt{resources} = full manifests/bases; \texttt{bases:} key itself is deprecated.
+\begin{lstlisting}[language=yaml]
+# components/mysql/kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources: [deployment.yaml, service.yaml]
+\end{lstlisting}
+
+\subsection{Best Practices \& Pitfalls}
+Keep common values (namespace, labels) in base. Organize by kind (\texttt{services.yaml}, \texttt{hpa.yaml}). Standard dirs: \texttt{base/}, \texttt{overlays/}, \texttt{components/}, \texttt{patches/}.\\
+\textbf{Pitfalls:} nested overlays (flatten!); not pinning image tags (use \texttt{images:} with explicit \texttt{newTag}); drift between cluster + kustomization (no release state tracked, unlike Helm); skipping \texttt{kustomize build} validation before apply; using traditional ConfigMaps when rollout-on-change needed (use generator).
 
 \subsection{Helm vs. Kustomize}
 \textbf{Helm:} templating + package manager (variables via \texttt{values.yaml}, releases, repos, rollbacks); good for distributing reusable apps. \\
