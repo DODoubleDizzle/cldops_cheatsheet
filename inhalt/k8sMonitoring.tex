@@ -1,45 +1,36 @@
 \section{K8s Monitoring \& Logging}
-\textbf{Three pillars of observability:}
-\textit{Metrics} (quantitative numbers over time), \\
-\textit{Logs} (qualitative event records),\\
-\textit{Traces} (follow one request across services via \textit{spans} to find latency/bottlenecks, e.g. Tempo, Jaeger). \\
-\textbf{Monitoring:} metrics, alerts, trends – quantitative (resource usage, request counts, error rates)\\
-\textbf{Logging:} detailed event records – qualitative (stack traces, system messages, business events) \\
-Kubernetes does not persist metrics out of the box. \texttt{kubectl logs} only persists logs for running containers, logs lost when container dies.
-\textbf{Agent-Based Monitoring/Logging:} A push-based system where software installed on server collects data and sends it to a central monitoring server. \textbf{Agentless Monitoring/Logging:} A central monitoring server requests data from the devices being monitored.
-
+\textbf{Observability} is a property (degree system generates actionable insights, qualitative);
+\textbf{Observing}/Monitoring = process (collect/store/evaluate \textit{signals}).
+\textbf{Three pillars:}
+\kf{Metrics} (quantitative: util, counters, rates),
+\kf{Logs} (qualitative: stack traces, events),
+\kf{Traces} (request path across services via \textit{spans} -- latency/bottlenecks, e.g.\ Tempo, Jaegerfollow one request across services via \textit{spans} to find latency/bottlenecks, e.g. Tempo, Jaeger).
+\textbf{Monitoring vs Logging} complement each other. \\
+\textbf{K8s obs gaps:} no historical metrics, \texttt{kubectl logs} only running containers (lost when container dies, kubelet cleanup), no native dashboards/alerts. Container logs at \texttt{/var/log/pods/...}; kubelet rotates at 10MB, keeps 5. \\
+\textbf{Push (agent-based):} agent on system sends to collector; observed decides when.
+\textbf{Pull (agentless):} collector queries via SNMP/ICMP/HTTP; collector decides when, but system must be online. 
+\textbf{Golden Signals} (Google SRE): latency, traffic, errors, saturation.
 \begin{mdframed}
-	\textbf{Example Stack:} \textit{Monitoring:} Exporters (custom for each app, exposes metrics), Prometheus (metrics collection), Grafana (dashboard), Alertmanager (rule-based alerting) \textit{Logging:} Fluent bit/fluentd (log collection), Loki (aggregation), Grafana (visualization)
-	\textit{Alternative: EFK (see subsection EFK)}
+	\textbf{PLG stack} (lightweight, K8s-native): Prometheus+Loki+Grafana. \textbf{LGTM:} Loki, Grafana, Tempo, Mimir. \textbf{EFK/ELK:} Elasticsearch (Java, JSON index, full-text, heavy) + Kibana + Fluentd/Logstash. PLG indexes \textit{labels} only (cheap, fast, weaker text search). \textbf{OpenTelemetry:} unified telemetry (metrics/logs/traces) spec.
 \end{mdframed}
-
-\subsection{Monitoring}
-\textbf{Prometheus:} Written in Go, stores data in a time-series DB. Scrapes metric endpoints over HTTP. Has client libraries to instrument custom apps written in Go, Java, Python, Node.js, .NET, \dots. Uses PromQL language to aggragate data across labels. Some PromQL examples:
+\subsection{Prometheus \& PromQL}
+Go, TSDB, pull-based scrape over HTTP (\texttt{/metrics}). Pushgateway/remote-write for short jobs. Client libs Go/Java/Python/Ruby/Rust. Standalone (no remote dep). \\
+\textbf{Targets:} Kubelets, kube-state-metrics, exporters. \textbf{Exporters:} bridge for apps without native \texttt{/metrics} (PostgreSQL, NGINX, Redis, JIRA, Kafka, \dots); use when can't instrument. \textbf{node-exporter:} HW/OS. \textbf{kube-state-metrics:} K8s object state. Install \texttt{metrics-server} for \texttt{kubectl top}. CPU units: \texttt{100m}=0.1 CPU absolute.\\
+\textbf{Metric types:} \textit{Counter} (monotonic, reset to 0: requests/errors), \textit{Gauge} (current value: memory, concurrency), \textit{Histogram} (sampled buckets), \textit{Summary} (sampled + total/sum). \textbf{Format:} \texttt{name\{label=val,\dots\} value [ts]} -- foundation of \textbf{OpenMetrics} std. \\
+\textbf{PromQL data types:} \textit{Instant vector} (set of series, one sample each, same ts), \textit{Range vector} (range per series, e.g.\ \texttt{[5m]}), \textit{Scalar} (float), \textit{String} (unused). \textbf{Offset} (positive = backwards): \texttt{rate(x[5m] offset 1w)}. \textbf{@-modifier}: \texttt{sum(x \@ 1609746000)}. \texttt{histogram\_quantile(0.95, rate(\dots\_bucket[5m]))} for p95 from Histogram. \texttt{rate()} useless on spikes/outliers -- use raw \& \texttt{>} threshold.
 \begin{lstlisting}[language=sql]
-sum by (namespace) (kube_pod_info) -- count of pods per cluster and namespace
-sum by (namespace) (kube_pod_status_ready{condition="false"}) -- count of pods not ready by namespace
-rate(mysql_global_status_commands_total{command=~"(select)"}[5m]) * 100 > 35 -- Rate of MySQL SELECT commands over last 5 minutes
--- The > 35 can be used to only display outliers (threshold/alert conditions)
+sum by (namespace) (kube_pod_status_ready{condition="false"})
+rate(mysql_global_status_commands_total{command=~"select"}[5m])*100 > 35
 \end{lstlisting}
+\textbf{Prometheus Operator} (\texttt{kube-prometheus-stack}): bundles operator+Prom+Grafana+Alertmanager. CRDs \texttt{Prometheus}/\texttt{ServiceMonitor}/\texttt{PodMonitor}. Match chain: Prom \texttt{serviceMonitorSelector}$\rightarrow$SM \texttt{selector}$\rightarrow$Service \texttt{selector}$\rightarrow$Pods. \\
+\textbf{Scaling Prometheus:} \textit{Federation} (hierarchical: region scrapes DC); \textit{Thanos} (sidecar, global query, long-term, dedup); \textit{Grafana Mimir} (horiz.\ scalable, ingester/querier components, multi-tenant, remote-write only).
 
-\textbf{Grafana:} Visualization tool for metrics \& logs. Connects to data sources (Prometheus, Loki, Elasticsearch)
+\subsection{Grafana, Alerting}
+General-purpose viz, many data sources (Prom/Loki/ES). \textit{Explore} feature: browse data sources, build queries, debug, share. OAuth/SAML/LDAP. Dashboard JSON repo \url{grafana.com/grafana/dashboards}. Tips: important data top, status-light $>$ number, simplicity, Data Source variable. \\
+\textbf{Alertmanager vs Grafana Alerts:} Alertmanager (Prom ecosystem, GitOps-friendly, separates viz/alert, Prom-only). Grafana Alerts (any data source, tied to dashboards, can chain to ext Alertmanager, less GitOps-friendly). Flow: \textit{Rule}$\rightarrow$evaluate/threshold$\rightarrow$\textit{Alert}$\rightarrow$Silence?$\rightarrow$AlertManager$\rightarrow$Channels (Email/Slack/Teams/Discord/Threema/Webhook)$\rightarrow$Contact Points. \textbf{Warning $\ne$ Alert}: cert expires in 45d, CPU 75\%, budget 200\% are warnings not pages. Avoid alert fatigue, build up slow, test.
 
-\subsection{Prometheus Operator}
-\texttt{kube-prometheus-stack} bundles operator + Prometheus + Grafana + Alertmanager. The operator watches CRDs (\texttt{Prometheus}, \texttt{ServiceMonitor}, \texttt{PodMonitor}) and turns a \texttt{Prometheus} CR into a StatefulSet. A \textbf{ServiceMonitor} wires a Service into Prometheus with no config edit -- match chain: Prometheus \texttt{serviceMonitorSelector} $\rightarrow$ ServiceMonitor \texttt{selector} $\rightarrow$ Service \texttt{selector} $\rightarrow$ Pods. \\
-\textbf{node-exporter:} hardware/OS metrics. \textbf{kube-state-metrics:} state of K8 objects, e.g.:
-\begin{lstlisting}[language=sql]
-kube_deployment_status_replicas_ready{namespace="x",deployment="y"}
-\end{lstlisting}
-\textit{CPU units:} \texttt{100m} = 0.1 CPU, absolute (same amount on a 1- or 48-core node). Install \texttt{metrics-server} for \texttt{kubectl top nodes/pods}.
-
-\subsection{Logging}
-\textbf{Node-Level vs Application Logging:} With application logging, the container of the app itself is directly communicating with the Logging Backend. In Node-Level logging, the application writes to a log-file, which the logging agent periodically reads and relays to the logging backend. The same principles also apply to side-car logging, where in Sidecar streaming, the sidecar writes to a log file, while a sidecar logging agent communicates with the backend directly. \\
-Container logs live at \texttt{/var/log/pods/...}; \texttt{kubectl logs} just tails that node file (so a \textit{streaming sidecar's} own logs aren't shown). Kubelet rotates at 10MB, keeps 5 files. \\
-\textbf{LogQL} (Loki) selects by stream labels, then filters lines: \texttt{\{job="test"\} |= "error"}. Loki requires unix \textit{nanosecond} timestamps.
-
-\subsection{EFK stack}
-\textit{Also ELK, where Logstash replaces Fluentd} \\
-\textbf{Elasticsearch:} Search engine written in Java, works with indices to handle huge amounts of data, especially JSON documents. \\
-\textbf{Fluentd:} Data Collection written in Ruby. Collects, filters and buffers logs from different sources, tries to store logging data as JSON. Typically runs as DaemonSet on each node and forwards Data to Elasticsearch. \\
-\textbf{Kibana:} Similar to Grafana, Kibana can display data living in Elasticsearch. \\
-\textbf{EFK/ELK vs. Loki (PLG):} Elasticsearch + full-text indexes the log \textit{content} (powerful queries/analytics, mature, Kibana), - resource-hungry (CPU/RAM/disk) \& harder to scale. Loki + only indexes \textit{labels}/metadata (cheap, lightweight, native Grafana \& PromQL-like LogQL), - weaker arbitrary full-text search.
+\subsection{Logging: Loki, Alloy}
+\textbf{Architectures:} \textit{Node-level} (DaemonSet agent reads node log file -- survives container death, batched); \textit{App-level} (app pushes to backend directly); \textit{Sidecar} (streaming = sidecar writes to file then node agent ships -- \texttt{kubectl logs} won't show sidecar's own; logging-agent sidecar = ships to backend directly, low-latency but loses on disconnect, adds complexity, misses crashes). Best practice: structured JSON logs. \\
+\textbf{Loki:} horiz.\ scalable, indexes \textit{labels} only (not text), \textit{nanosecond} unix ts, cheap storage, PromQL-like \textbf{LogQL}: \texttt{\{job="test"\} |= "error"}; metric queries \texttt{rate(\{app="x"\} |= "176" [1m])}; filters \texttt{|=} contains, \texttt{!=}, \texttt{|\~{}} regex, \texttt{!\~{}}. \\
+\textbf{Alloy} (Grafana, replaces Promtail): collects all telemetry, own HCL-like lang. Components: \texttt{loki.source.file} (tail files, classic DaemonSet pattern), \texttt{loki.source.kubernetes} (subscribe via K8s API -- no root, no DaemonSet needed, but more CPU/net), \texttt{loki.source.kubernetes\_events} (K8s events). Logs enriched with \textbf{K8s metadata}, forwarded over HTTP. Helm-installable. \\
+\textbf{Pitfalls:} too much logging $\rightarrow$ storage/complexity; no alert tuning $\rightarrow$ noise/missed; forgetting rotation/archival; relying on single signal; logging secrets.
