@@ -1,28 +1,15 @@
 \section{GitOps}
-GitOps uses Git repositories as the single source of truth for infrastructure and application configurations. Automated agents continuously monitor Git repos and sync changes to target environments automatically. \\
-\textbf{Principles:} \textit{declarative} (desired state lives in Git), \textit{versioned \& immutable} (Git history = audit log, revert = rollback), \textit{pulled automatically} and \textit{continuously reconciled} (agent detects and corrects drift).
+Git = single source of truth for infra/app config; in-cluster agent reconciles live $\rightarrow$ desired state. \\
+\textbf{4 Principles (OpenGitOps):} \kf{declarative} state; \kf{versioned \& immutable} (history = audit, revert = rollback); \kf{pulled} by agents; \kf{continuously reconciled} (detect + self-heal drift).
 
-\subsection{Push- vs. Pull-Based}
-\textbf{Push (classic CI/CD):} the pipeline holds cluster credentials and pushes manifests into the cluster (\texttt{kubectl apply}). - credentials live outside the cluster, - no drift detection, - every new environment needs pipeline changes. \\
-\textbf{Pull (GitOps):} an agent inside the cluster watches Git and pulls the desired state. + no external credentials / open firewall, + automatic drift correction, + scales to many clusters, - an agent must be installed per cluster.
+\subsection{Push vs.\ Pull}
+\textbf{Push (classic CI/CD):} pipeline holds creds, runs \texttt{kubectl apply}. + fast, well-known; - creds outside cluster, inbound firewall, no drift detection, per-env pipeline edits. \\
+\textbf{Pull (GitOps):} in-cluster agent watches Git, syncs. + no inbound access, drift correction, multi-cluster scale; - agent per cluster, polling latency. \kf{Trust:} CI server $\rightarrow$ agent + Git. \kf{Access dir:} push = in; pull = out.
 
-\subsection{Drift \& Reconciliation}
-\textit{Drift} = the live cluster state diverges from Git (e.g. a manual \texttt{kubectl edit}). The agent runs a \textit{reconciliation loop}: continuously compare Git vs. live state and either report the difference or self-heal (sync/prune) back to the declared state.
+\subsection{Argo CD vs.\ Flux CD}
+\textbf{Argo CD}: Web UI + CLI, multi-cluster from one UI, SSO/RBAC, sync waves, pre/post hooks, health checks. CRDs: \texttt{Application} (repo+path $\rightarrow$ cluster/ns + syncPolicy), \texttt{ApplicationSet} (templated per branch/cluster/env), \texttt{AppProject} (restrict what/where/who). Pattern: \kf{App-of-Apps} (root App syncs children). \\
+\textbf{Flux CD}: CLI-first, no UI, modular \kf{GitOps Toolkit} (source, kustomize, helm, notification, image). Supports Gitless GitOps (OCI/S3) + image automation. \kf{Naming clash:} \texttt{kustomize.config.k8s.io} (feature) vs.\ \texttt{kustomize.toolkit.fluxcd.io} (Flux CRD).
 
-\subsection{Argo CD vs. Flux CD}
-\textbf{Argo CD:} platform-engineering tool with a web UI \& dashboard. Wraps a deployment in an \texttt{Application} CRD (points at repo+path and a target cluster/namespace). \texttt{ApplicationSet} templates many Applications (multi-cluster, monorepo, per-env). Supports sync waves, health checks, manual or auto sync. \\
-\textbf{Flux CD:} lightweight, CLI-first, built from the GitOps Toolkit controllers. Kustomize- \& Helm-native (\texttt{Kustomization}, \texttt{HelmRelease} CRDs), no built-in UI. Strong on image automation \& notifications.
-
-\subsection{Argo CD in Practice}
-\begin{lstlisting}[language=sh]
-kubectl create namespace argocd
-kubectl apply -n argocd -f .../install.yaml
-kubectl port-forward -n argocd svc/argocd-server 8080:443
-# initial admin password (user: admin):
-kubectl -n argocd get secret argocd-initial-admin-secret \
-  -o jsonpath="{.data.password}" | base64 -d
-\end{lstlisting}
-Destination for the local cluster: \texttt{https://kubernetes.default.svc}. \\
-\textit{Gotcha:} if a manifest sets \texttt{replicas} \textit{and} an HPA is active, Argo CD and the HPA fight (revert vs rescale) $\rightarrow$ omit \texttt{replicas} from Git. \\
-\textbf{Secrets in GitOps:} (1) \textit{encrypted in Git} (Sealed Secrets, SOPS), or (2) \textit{reference in Git} + fetch from an external store (External Secrets, Vault). \\
-\textit{Access direction:} push = runner needs access \textit{into} the cluster; pull = the cluster reaches \textit{out} to Git (nothing reaches in).
+\subsection{Secrets \& Best Practices}
+\textbf{Encrypted in Git:} Sealed Secrets (controller decrypts), SOPS. \textbf{Referenced:} External Secrets, Secrets Store CSI driver (mounts Vault/KMS as volume). \\
+\textbf{Monorepo:} \texttt{clusters/<c>/} bootstrap, \texttt{apps/base/} shared, \texttt{apps/<c>/} per-cluster. \textbf{Rules:} never commit plaintext, pin image tags (no \texttt{latest}), monitor controller, split monolith repos.
