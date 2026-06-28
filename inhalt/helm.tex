@@ -28,16 +28,29 @@ helm package CHART_PATH        # build .tgz, then helm push <pkg> <repo>
 helm dependency update @\pChart{CHART}@    # pulls into charts/
 \end{lstlisting}
 
-\subsection{Chart Structure \& Chart.yaml}
-\texttt{helm create <n>} scaffolds: \texttt{Chart.yaml} (meta), \texttt{values.yaml} (defaults), \texttt{templates/} (Go-tmpl manifests), \texttt{templates/\_helpers.tpl} (named templates, \texttt{\_}=not rendered), \texttt{templates/NOTES.txt} (rendered post-install), \texttt{charts/} (subcharts), \texttt{crds/}, \texttt{.helmignore} (globs, \texttt{!}=negate; excludes from \texttt{helm package}).\\
-\texttt{Chart.yaml} fields: \textbf{apiVersion} (\texttt{v2}=Helm 3+, \texttt{v1}=legacy), \textbf{name}, \textbf{version} (SemVer2; pkg name = name+ver), \textbf{type} (\texttt{application} default \textbar{} \texttt{library} = helpers only, no install), \textbf{appVersion} (app being shipped, info-only), \textbf{kubeVersion} (range like \texttt{>=1.12.1 <1.14.0 || >=1.14.2}; install fails if mismatch), \textbf{dependencies} (name/version/repository/condition/alias; \texttt{requirements.yaml} deprecated, lockfile on update).
+\subsection{Chart Structure}
+\texttt{helm create NAME} scaffolds: \\
+\kf{Chart.yaml} metadata \\
+\kf{values.yaml} default values \\
+\kf{templates/} Go-template manifests \\
+\kf{templates/\_helpers.tpl}  named templates (\texttt{\_}=not rendered) \\
+\kf{templates/NOTES.txt}  rendered \& shown post-install \\
+\kf{charts/} subcharts; \kf{crds/}  CRDs \\
+\kf{.helmignore} ignore globs (\texttt{!}=negate)
+\subsection{Chart.yaml fields:}
+\kf{apiVersion} \texttt{v2}=Helm 3+, \texttt{v1}=legacy
+\kf{name} chart name; \kf{version} chart version, SemVer2 (e.g.\ \texttt{1.4.0}) $\to$ \texttt{name-version.tgz}
+\kf{type} \texttt{application} (default) \textbar{} \texttt{library} (helpers only, no install)
+\kf{appVersion} app shipped (info-only)
+\kf{kubeVersion} allowed range (e.g. \texttt{>=1.12 <1.14}); install fails if mismatch
+\kf{dependencies} name/version/repository/condition/alias (\texttt{requirements.yaml} deprecated; lockfile on update)
 
 \subsection{Templating}
-\textbf{Top-level objects:} \texttt{.Release.\{Name,Namespace,Revision,IsInstall,IsUpgrade,Service\}}, \texttt{.Chart.*}, \texttt{.Values}, \texttt{.Files.Get <path>}, \texttt{.Capabilities.\{APIVersions,KubeVersion\}}, \texttt{.Template.\{Name,BasePath\}}. \\
-\textbf{Values precedence} (low$\to$high, last wins): subchart \texttt{values.yaml} $\to$ parent \texttt{values.yaml} $\to$ \texttt{-f myvals.yml} $\to$ \texttt{--set k=v}. Unset default: \texttt{--set x=null}. \\
-\textbf{Functions:} Sprig lib (\textasciitilde 60+: \texttt{upper quote eq default trunc toYaml indent nindent}). Pipelines \texttt{|} pass result as last arg. \texttt{include} = \texttt{template} but pipeable. \texttt{required "msg" .Values.x} fails if empty. \texttt{tpl <str> .} evaluates string as template. \\
-\textbf{Flow:} \texttt{\{\{ if/else if/else \}\}...\{\{ end \}\}} (false on 0/""/nil/empty); \texttt{\{\{ range \$k,\$v := .Values.list \}\}}; \texttt{\{\{ with .Values.sub \}\}} rescopes \texttt{.}. Vars: \texttt{\{\{- \$n := .Release.Name -\}\}}. \\
-\textbf{Whitespace:} \texttt{\{\{-} strips left, \texttt{-\}\}} strips right; \texttt{nindent N} = newline + indent. YAML indent critical.
+\textbf{Objects:} \kf{.Release.\{Name, Namespace, Revision, IsInstall, IsUpgrade\}}, \kf{.Chart.*}, \kf{.Values}, \kf{.Files.Get}, \kf{.Capabilities}, \kf{.Template}. \\
+\textbf{Values precedence} (low$\to$high, last wins): subchart \kf{values.yaml} $\to$ parent \kf{values.yaml} $\to$ \texttt{-f my.yml} $\to$ \texttt{--set k=v}; unset via \texttt{--set x=null}. \\
+\textbf{Functions} (Sprig, \textasciitilde60+): \kf{upper}, \kf{quote}, \kf{default}, \kf{trunc}, \kf{toYaml}, \kf{indent}/\kf{nindent}. \texttt{|} pipes result as last arg. \kf{include} = pipeable \kf{template}. \kf{required} fails if empty. \kf{tpl} renders a string as a template. \\
+\textbf{Flow:} \texttt{\{\{if\}\}\dots\{\{end\}\}} (false on \texttt{0/""/nil/empty}); \texttt{\{\{range \$k,\$v := .list\}\}}; \texttt{\{\{with .sub\}\}} rescopes \texttt{.} \\
+\textbf{Whitespace:} \texttt{\{\{-} trims left, \texttt{-\}\}} trims right; \texttt{nindent N} = newline+indent. YAML indent is critical.
 \begin{lstlisting}[language=yaml]
 {{- define "app.name" -}}{{ default .Chart.Name .Values.name | trunc 63 }}{{- end }}
 name: {{ include "app.name" . | quote }}
