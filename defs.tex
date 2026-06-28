@@ -27,6 +27,18 @@
 % DevOps stages: activities vs tools
 \newcommand{\actv}[1]{\textcolor{BurntOrange}{#1}}
 \newcommand{\tool}[1]{\textcolor{Emerald}{#1}}
+% Helm command args (exact tokens from helm.sh docs), one color per distinct token
+\definecolor{phName}{HTML}{1B5FA8}    % NAME
+\definecolor{phChart}{HTML}{2E7D32}   % CHART
+\definecolor{phRelease}{HTML}{7A3DAE} % RELEASE
+\definecolor{phRelName}{HTML}{9A3324} % RELEASE_NAME
+\newcommand{\pName}[1]{\textcolor{phName}{#1}}
+\newcommand{\pChart}[1]{\textcolor{phChart}{#1}}
+\newcommand{\pRelease}[1]{\textcolor{phRelease}{#1}}
+\newcommand{\pRelName}[1]{\textcolor{phRelName}{#1}}
+% Helm chart files / Chart.yaml fields / template objects -> one teal "key" style
+\definecolor{keyc}{HTML}{0F766E}
+\newcommand{\kf}[1]{\textcolor{keyc}{\ttfamily #1}}
 
 % Load tikz with extensions
 \usepackage{tikz}

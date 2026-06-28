@@ -1,49 +1,46 @@
 \section{Helm}
-A package manager for K8, enabling to reuse configurations for common use cases (DB, monitoring). Helm provides \textit{Charts}, which are a collection of yaml files describing different K8 Objects. When deploying a chart on your cluster, it is called a \textit{Release}. Charts are available through different \textit{Repositories}. \\
-Helm charts use templating (like \texttt{\{\{Release.Name\}\}}, for information about package, or \texttt{\{\{.Values.xyz.abc | default "example"\}\}} for information passed by values.yaml or via commandline \texttt{-set})
+Package manager for K8 (apt/brew-like).
+\textbf{Chart:} files describing related K8 resources.
+\textbf{Release:} running instance.
+\textbf{Repo:} stores versioned charts.
+\textbf{Architecture:} client-side only (Helm 3, no Tiller); talks to K8 API directly; release state stored in-cluster as \textbf{Secrets} (in the release's namespace).
+\textcolor{ForestGreen}{\textbf{Pros:}} huge chart library, versioning/deps, lifecycle (install/upgrade/rollback), powerful Go-template logic.
+\textcolor{red}{\textbf{Cons:}} templates hard to debug, ``spaghetti YAML'', opaque state, steep curve. Use for: distributing complex apps, consuming community charts, advanced logic. Avoid for: simple YAML tweaks.
 
 \subsection{Commands}
-
-\begin{lstlisting}[language=sh]
-# Repo commands
-helm repo list
-helm repo add <repo> <url>
-helm repo rm <repo>
-
-helm list # list installed releases
-helm install -f values.yaml <release> <chart> # install with custom values
-helm show <chart | readme | values | all> <chartname | repo>
-
-helm upgrade <release> <chart>
-helm rollback <release> <revision>
-
-helm template <name> <chart>    # render locally, no install
-helm template . -f values.yaml --set k=v | wc -l
-helm lint <chart>               # check for errors
-helm uninstall <release>
-helm history <release>          # upgrade & rollback each add a revision
-helm get all|values|notes <release> # values = only overrides
-helm search repo <repo>/<chart> -l  # list ALL versions
-helm install x <chart> --version 1.2.3
+% Placeholders are the exact arg names from helm.sh docs, one color per token.
+\begin{lstlisting}[language=sh, escapeinside={@}{@}]
+helm repo add|list|rm @\pName{NAME}@ URL    # repos
+helm search repo @\pName{<r>}@ / @\pChart{<c>}@ -l                 # all versions
+helm install -f vals.yaml @\pName{NAME}@ @\pChart{CHART}@ --version 1.2.3
+helm upgrade @\pRelease{RELEASE}@ @\pChart{CHART}@
+helm rollback @\pRelease{RELEASE}@ REVISION
+helm uninstall @\pRelName{RELEASE\_NAME}@   # also drops history
+helm list; helm history @\pRelName{RELEASE\_NAME}@
+helm status @\pRelName{RELEASE\_NAME}@      # unknown|deployed|uninstalled|
+  # superseded|failed|uninstalling|pending-{install,upgrade,rollback}
+helm get all|values|notes|manifest @\pRelName{RELEASE\_NAME}@  # values=overrides
+helm template @\pName{NAME}@ @\pChart{CHART}@ -f v.yaml --set k=v  # render local
+helm install @\pName{NAME}@ @\pChart{CHART}@ --dry-run --debug     # simulate
+helm lint CHART_PATH [--with-subcharts]
+helm show chart|readme|values|all @\pChart{CHART}@
+helm package CHART_PATH        # build .tgz, then helm push <pkg> <repo>
+helm dependency update @\pChart{CHART}@    # pulls into charts/
 \end{lstlisting}
 
-\subsection{Chart Structure}
-\texttt{helm create <name>} scaffolds a chart:
-\begin{itemize}
-    \item \texttt{Chart.yaml} -- metadata (name, version, dependencies)
-    \item \texttt{values.yaml} -- default values (overridable via \texttt{-f}/\texttt{--set})
-    \item \texttt{templates/} -- templated K8 manifests (Go templating)
-    \item \texttt{charts/} -- bundled subcharts (dependencies)
-\end{itemize}
-\textbf{Dependencies} (other charts, e.g. a DB) are declared in \texttt{Chart.yaml} and pulled with \texttt{helm dependency update}.
+\subsection{Chart Structure \& Chart.yaml}
+\texttt{helm create <n>} scaffolds: \texttt{Chart.yaml} (meta), \texttt{values.yaml} (defaults), \texttt{templates/} (Go-tmpl manifests), \texttt{templates/\_helpers.tpl} (named templates, \texttt{\_}=not rendered), \texttt{templates/NOTES.txt} (rendered post-install), \texttt{charts/} (subcharts), \texttt{crds/}, \texttt{.helmignore} (globs, \texttt{!}=negate; excludes from \texttt{helm package}).\\
+\texttt{Chart.yaml} fields: \textbf{apiVersion} (\texttt{v2}=Helm 3+, \texttt{v1}=legacy), \textbf{name}, \textbf{version} (SemVer2; pkg name = name+ver), \textbf{type} (\texttt{application} default \textbar{} \texttt{library} = helpers only, no install), \textbf{appVersion} (app being shipped, info-only), \textbf{kubeVersion} (range like \texttt{>=1.12.1 <1.14.0 || >=1.14.2}; install fails if mismatch), \textbf{dependencies} (name/version/repository/condition/alias; \texttt{requirements.yaml} deprecated, lockfile on update).
 
 \subsection{Templating}
-Named templates live in \texttt{templates/\_helpers.tpl} (\texttt{define} + \texttt{include}). Built-ins: \texttt{.Chart.Name} (from Chart.yaml), \texttt{.Release.Namespace}/\texttt{.IsInstall}, \texttt{.Files}. \texttt{templates/NOTES.txt} is rendered \& printed after install. \texttt{helm list} shows CHART version (the package) vs APP VERSION (the software).
+\textbf{Top-level objects:} \texttt{.Release.\{Name,Namespace,Revision,IsInstall,IsUpgrade,Service\}}, \texttt{.Chart.*}, \texttt{.Values}, \texttt{.Files.Get <path>}, \texttt{.Capabilities.\{APIVersions,KubeVersion\}}, \texttt{.Template.\{Name,BasePath\}}. \\
+\textbf{Values precedence} (low$\to$high, last wins): subchart \texttt{values.yaml} $\to$ parent \texttt{values.yaml} $\to$ \texttt{-f myvals.yml} $\to$ \texttt{--set k=v}. Unset default: \texttt{--set x=null}. \\
+\textbf{Functions:} Sprig lib (\textasciitilde 60+: \texttt{upper quote eq default trunc toYaml indent nindent}). Pipelines \texttt{|} pass result as last arg. \texttt{include} = \texttt{template} but pipeable. \texttt{required "msg" .Values.x} fails if empty. \texttt{tpl <str> .} evaluates string as template. \\
+\textbf{Flow:} \texttt{\{\{ if/else if/else \}\}...\{\{ end \}\}} (false on 0/""/nil/empty); \texttt{\{\{ range \$k,\$v := .Values.list \}\}}; \texttt{\{\{ with .Values.sub \}\}} rescopes \texttt{.}. Vars: \texttt{\{\{- \$n := .Release.Name -\}\}}. \\
+\textbf{Whitespace:} \texttt{\{\{-} strips left, \texttt{-\}\}} strips right; \texttt{nindent N} = newline + indent. YAML indent critical.
 \begin{lstlisting}[language=yaml]
-{{- define "app.name" -}}
-{{ default .Chart.Name .Values.name | trunc 63 }} # fallback + 63-char cap
-{{- end }}
-# use it: {{ include "app.name" . }}
-resources:
-  {{- toYaml .Values.resources | nindent 4 }} # inject a whole sub-tree
+{{- define "app.name" -}}{{ default .Chart.Name .Values.name | trunc 63 }}{{- end }}
+name: {{ include "app.name" . | quote }}
+{{- required "set .Values.img!" .Values.img }}
+resources: {{- toYaml .Values.resources | nindent 4 }}
 \end{lstlisting}
