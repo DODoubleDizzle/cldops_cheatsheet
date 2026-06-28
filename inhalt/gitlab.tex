@@ -1,76 +1,5 @@
 \section{GitLab Pipelines}
-\begin{lstlisting}[language=yaml]
-stages:
-  - build
-  - test
-  - deploy
-cache:
-  paths:
-    - .cache/
-build:
-  stage: build
-  script:
-    - echo "Building..."
-    - mkdir -p artifacts && echo "artifact" > artifacts/output.txt
-  artifacts:
-    paths:
-      - artifacts/
-    expire_in: 1 hour
-test:
-  stage: test
-  dependencies:
-    - build
-  script:
-    - cat artifacts/output.txt
-deploy_staging:
-  stage: deploy
-  environment:
-    name: staging
-    url: https://staging.example.com
-    on_stop: stop_staging # Unstages env
-  script:
-    - cat k8.yaml | envsubst | kubectl apply -f -
-  artifacts:
-    expire_in: 1 hour
-stop_staging:
-  stage: deploy
-  environment:
-    name: staging
-    action: stop
-  script:
-    - echo "Stopping staging"
-\end{lstlisting}
-\subsection{Jobs, Stages \& Rules}
-\texttt{.gitlab-ci.yml} is a YAML DSL mapping the DevOps cycle to a pipeline. A \textbf{job} is the smallest unit; it belongs to one \textbf{stage} and runs its \texttt{script} steps on a runner. Jobs in the same stage run in \textit{parallel}, stages run \textit{sequentially}. \\
-\textbf{rules:} decide \textit{when} a job runs (modern replacement for \texttt{only/except}). \textbf{needs:} builds a DAG so a job can start before its whole stage finishes.
-\begin{lstlisting}[language=yaml]
-deploy:
-  stage: deploy
-  needs: [build]
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
-      when: on_success
-    - when: never
-\end{lstlisting}
 
-\subsection{Environments}
-Describe where the code gets deployed (e.g. Local, Integration, Testing, Staging, Production). Can be linked to a K8 cluster (needs to be set up via GitLab UI):
-
-\subsection{Cache \& Artifacts}
-\textbf{Cache:} Shared across \textit{jobs} in different \textbf{stages} and even \textbf{pipelines} (if configured). Used for speeding up tasks (e.g., restoring dependencies).
-\textbf{Artifacts:} Shared only with \textit{downstream jobs} in later \textbf{stages}. Must be explicitly declared as \texttt{dependencies} to access in later jobs. Uploaded to GitLab and optionally downloadable.
-\subsection{Push- vs. Pull-Based Deployments}
-\textbf{Push-Based:} + Easy to use, + flexible deployment targets, - firewall needs to be opened, - pipeline needs to be adjusted for new environments \textbf{Pull-Based:} + no need for open firewall, + better scaling, - agent needs to be installed in every cluster
-
-\subsection{GitLab Runner}
-GitLab Runner executes jobs defined in \texttt{.gitlab-ci.yml}.
-Types: \textbf{Shared} (managed by GitLab) vs. \textbf{Specific} (self-managed).
-Can run in various executors: \texttt{shell}, \texttt{docker}, \texttt{kubernetes}, etc.
-Tagged runners can restrict which jobs they pick up.
-
-\subsection{More Keywords \& Docker Build}
-\texttt{default:} sets fallback \texttt{image}/\texttt{before\_script} for all jobs. \texttt{before\_script}/\texttt{after\_script} wrap every job's \texttt{script}. \texttt{rules: changes:} runs a job only if listed files changed. \\
-\textbf{Predefined vars:} \texttt{\$CI\_REGISTRY[\_IMAGE]}, \texttt{\$CI\_REGISTRY\_USER}/\texttt{\_PASSWORD}, \texttt{\$CI\_COMMIT\_BRANCH}, \texttt{\$CI\_PROJECT\_DIR}. Pin images by digest (\texttt{img@sha256:..}), not \texttt{:latest} (tags can silently move $\rightarrow$ flaky builds).
 \begin{lstlisting}[language=yaml]
 build-image:
   stage: release
@@ -80,6 +9,69 @@ build-image:
       alias: docker
   variables:
     IMG: $CI_REGISTRY_IMAGE:latest
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -t $IMG -f Dockerfile.prod .
+    - docker push $IMG
+  rules:
+    - changes: [Dockerfile.prod]
+\end{lstlisting}
+
+\subsection{Core Concepts \& DSL Mapping}
+Pipeline = automated steps $\rightarrow$ faster, safer, reliable. Traceable logs, parallel jobs, consistent envs kill "works on my machine".
+
+\textbf{5-stage flow:} commit/MR/tag $\rightarrow$ \textit{build} (compile, image, package) $\rightarrow$ \textit{test} (unit/integration/security/perf) $\rightarrow$ \textit{release} (publish to registry) $\rightarrow$ \textit{deploy} (target env) $\rightarrow$ \textit{post-deploy} (smoke, health, rollback).
+
+\subsection{Jobs, Stages \& Rules}
+\texttt{.gitlab-ci.yml} YAML DSL. \textbf{Job} = smallest unit, belongs to one \textbf{stage}, runs \texttt{script} on a runner. Same stage $\rightarrow$ \textit{parallel}; stages $\rightarrow$ \textit{sequential}. \\
+\textbf{rules:} \textit{when} a job runs (modern replacement for \texttt{only/except}). \textbf{needs:} builds DAG, start before stage finishes. \textbf{dependencies:} which jobs' artifacts to pull (no ordering). \textbf{workflow:rules:} gate the whole pipeline.
+\begin{lstlisting}[language=yaml]
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+deploy:
+  stage: deploy
+  needs: [build]           # DAG, skip stage wait
+  dependencies: [build]    # pull build's artifacts
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - when: never
+\end{lstlisting}
+
+\subsection{Cache, Artifacts \& Services}
+\textbf{Cache:} shared across jobs/pipelines, speed up repeat work (deps, compiled objects). \textbf{Artifacts:} files persisted to GitLab for downstream stages or download; declare via \texttt{dependencies}/\texttt{needs}. \textbf{Services:} sidecar containers (DB, dind, API) reachable via \texttt{alias}.
+\begin{lstlisting}[language=yaml]
+integration-test:
+  services: [{name: postgres:17, alias: db}]
+  variables: {POSTGRES_DB: app, POSTGRES_USER: u, POSTGRES_PASSWORD: p}
+  script: [psql -h db -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT 1"]
+  cache: {key: deps, paths: [.cache/]}
+  artifacts: {paths: [bin/], expire_in: 1h}
+\end{lstlisting}
+
+\subsection{Environments}
+Where code is deployed. \textbf{Tiers:} Local (workstation) $\rightarrow$ Dev (sandbox) $\rightarrow$ Integration (CI target) $\rightarrow$ Test/QC (interface tests) $\rightarrow$ Staging (prod mirror) $\rightarrow$ Production (live). Linkable to K8s cluster (set up via UI). \texttt{environment.on\_stop} unstages; \texttt{action: stop} stops it.
+
+\subsection{Push vs. Pull Deployment}
+\textbf{Push} (Jenkins/GitLab calls cluster): + easy, flexible targets (VMs/containers, not just K8s); -- firewall open, admin access out, pipeline per env. \textbf{Pull} (agent in cluster, e.g. Argo/Flux): + secure (no inbound), auto-reconcile, scales identically; -- agent per cluster, polling latency.
+
+\subsection{GitLab Runner}
+Worker executing jobs defined in .gitlab-ci.yml. \textbf{Scope:} Instance (shared, GitLab-managed) / Group / Project (dedicated). \textbf{Executors:} \texttt{shell}, \texttt{ssh}, \texttt{docker}, \texttt{docker+machine}, \texttt{kubernetes}, \texttt{virtualbox}, \texttt{parallels}. Register: \texttt{gitlab-runner register} with URL + token + tags + executor. Jobs pick runner by \texttt{tags:}.
+
+\subsection{More Keywords \& Docker Build}
+\texttt{default:} fallback \texttt{image}/\texttt{before\_script}. \texttt{before\_script}/\texttt{after\_script} wrap every \texttt{script}. \texttt{rules:changes:} run only if files changed. \\
+\textbf{Predefined vars:} \texttt{\$CI\_REGISTRY[\_IMAGE]}, \texttt{\$CI\_REGISTRY\_USER}/\texttt{\_PASSWORD}, \texttt{\$CI\_COMMIT\_BRANCH}, \texttt{\$CI\_COMMIT\_SHORT\_SHA}, \texttt{\$CI\_PROJECT\_DIR}, \texttt{\$CI\_JOB\_TOKEN} (auth API/registry), \texttt{\$CI\_MERGE\_REQUEST\_IID}. Pin images by digest (\texttt{img@sha256:..}), not \texttt{:latest} $\rightarrow$ flaky.
+\begin{lstlisting}[language=yaml]
+build-image:
+  stage: release
+  image: docker:28
+  services:
+    - {name: docker:28-dind, alias: docker}   # Docker-in-Docker
+  variables: {IMG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA}
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
