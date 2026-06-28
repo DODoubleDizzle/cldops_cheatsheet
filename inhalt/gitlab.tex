@@ -1,8 +1,10 @@
 \section{GitLab Pipelines}
 
 \begin{lstlisting}[language=yaml]
-build-image:
-  stage: release
+stages:
+  - build-release
+build-release-image:
+  stage: build-release
   image: docker:28
   services:
     - name: docker:28-dind   # Docker-in-Docker
