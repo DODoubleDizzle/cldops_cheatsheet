@@ -5,6 +5,13 @@
 \usepackage{fontspec}
 \setmainfont{Verdana}[Scale=0.90]
 \setsansfont{Verdana}[Scale=0.90]
+% Code font: JetBrains Mono NL (no-ligatures), bundled in fonts/. Sets \ttfamily.
+\setmonofont{JetBrainsMonoNL}[
+	Path = fonts/ , Extension = .ttf ,
+	UprightFont = *-Regular , BoldFont = *-Bold ,
+	ItalicFont = *-Italic , BoldItalicFont = *-BoldItalic ,
+	Scale = 0.85 ,
+]
 
 \input{defs.tex}
 \begin{document}
