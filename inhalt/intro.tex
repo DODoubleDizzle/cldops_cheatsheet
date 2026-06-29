@@ -3,8 +3,10 @@
 \textbf{Cloud Operations:} manage/optimize cloud services \& infra.
 \textbf{GitOps:} Git = single source of truth; declarative, versioned CI/CD.
 \textbf{DevOps:} dev+ops; automation, CI/CD, monitoring, agile.
-\textbf{CI:} every push auto-built \& tested.
+\textbf{CI:} developers integrate into the shared mainline frequently (small commits, short-lived branches); every push auto-triggers build + tests (unit/integration), catching conflicts/breakage early and keeping the trunk green \& releasable. Avoids big-bang ``integration hell''; fast feedback, fail fast.
+\textbf{CD:} once CI passes, the change is auto-packaged \& promoted through environments (dev$\to$staging$\to$prod). \kf{Continuous Delivery} = automated up to a manual gate before prod (one-click release; artifact always deployable); \kf{Continuous Deployment} = no gate, every green change auto-released to prod.
 \textbf{Platform Engineering:} internal self-service dev platforms (IDP); faster shipping.
+\textbf{How they relate:} DevOps (culture \& practice) $\to$ CI/CD (automates it via pipelines) $\to$ Platform Engineering (productizes it as a self-service IDP to scale across teams).
 \textbf{DevOps 6 pillars:} Cultural mindset, Automation-first, Continuous Processes, Monitoring/Feedback, Rapid+Reliable Releases, Security.
 \subsection{DevOps Cycle}
 \includegraphics[width=\linewidth]{devops.png} \\
@@ -18,7 +20,6 @@
 \textbf{Deploy} (\actv{pull artifact, apply manifest, strategy, post-deploy validation, rollback} | \tool{ArgoCD, Flux, Helm, Kustomize, Terraform/OpenTofu, Ansible, Flagger}),
 \textbf{Operate} (\actv{troubleshoot, scale, patch, secret rotation, drift detect, backups, compliance} | \tool{PagerDuty, Vault, Velero, HPA/VPA, Falco}),
 \textbf{Monitor} (\actv{SLI/SLO, dashboards, alerts, synthetic checks, correlate logs/metrics/traces} | \tool{Prometheus, Grafana, Loki, Jaeger, ELK, Alertmanager}). \\
-\textbf{CDelivery vs CDeployment:} Deployment auto-pushes staging$\to$prod; Delivery manual gate. \\
 \textbf{CD Deployment Strategies:}
 \begin{itemize}
 	\item \textbf{Rolling:} gradual update, minimal downtime

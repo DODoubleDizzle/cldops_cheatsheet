@@ -1,29 +1,51 @@
 \section{GitLab Pipelines}
 
 \begin{lstlisting}[language=yaml]
-stages:
-  - build-release
-build-release-image:
-  stage: build-release
+default: { image: golang:1.24-alpine }    # fallback image for all jobs
+stages: [build, test, release, deploy, post-deploy]
+
+build:                       # DevOps cycle -> Build
+  stage: build
+  script:
+    - go mod download
+    - CGO_ENABLED=0 go build -o bin/app ./...
+  artifacts: { paths: [bin/app] }         # persist for later stages
+
+lint-test:                   # DevOps cycle -> Test
+  stage: test
+  image: golangci/golangci-lint:v1.64.5-alpine
+  script: [golangci-lint run -v]
+
+build-docker:                # DevOps cycle -> Release (publish image)
+  stage: release
   image: docker:28
-  services:
-    - name: docker:28-dind   # Docker-in-Docker
-      alias: docker
-  variables:
-    IMG: $CI_REGISTRY_IMAGE:latest
+  services: [{ name: docker:28-dind, alias: docker }]   # dind
+  variables: { IMG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA }
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
     - docker build -t $IMG -f Dockerfile.prod .
     - docker push $IMG
-  rules:
-    - changes: [Dockerfile.prod]
+
+deploy-prod:                 # DevOps cycle -> Deploy
+  stage: deploy
+  image: alpine/kubectl:1.35
+  script:
+    - yq -i ".spec.template.spec.containers[0].image=\"$IMG\"" k8s/deployment.yaml
+    - kubectl apply -f k8s/deployment.yaml
+  environment: { name: production, url: https://demo.example.com }
+  rules: [{ if: '$CI_COMMIT_BRANCH == "main"' }]   # prod only on main
+
+post-deploy:                 # DevOps cycle -> Operate/Monitor
+  stage: post-deploy
+  script: [echo "smoke test + health check"]
 \end{lstlisting}
 
 \subsection{Core Concepts \& DSL Mapping}
 Pipeline = automated steps $\rightarrow$ faster, safer, reliable. Traceable logs, parallel jobs, consistent envs kill "works on my machine".
 
-\textbf{5-stage flow:} commit/MR/tag $\rightarrow$ \textit{build} (compile, image, package) $\rightarrow$ \textit{test} (unit/integration/security/perf) $\rightarrow$ \textit{release} (publish to registry) $\rightarrow$ \textit{deploy} (target env) $\rightarrow$ \textit{post-deploy} (smoke, health, rollback).
+\textbf{5-stage flow:} commit/MR/tag $\rightarrow$ \textit{build} (compile, image, package) $\rightarrow$ \textit{test} (unit/integration/security/perf) $\rightarrow$ \textit{release} (publish to registry) $\rightarrow$ \textit{deploy} (target env) $\rightarrow$ \textit{post-deploy} (smoke, health, rollback). \\
+\textbf{Map to DevOps cycle:} the pipeline automates the loop's middle -- \texttt{build}$\to$Build, \texttt{test}$\to$Test, \texttt{release}$\to$Release, \texttt{deploy}$\to$Deploy; \textit{triggered by} Code (commit/MR/tag), \textit{feeds} Operate/Monitor. \textbf{CI} = build+test (keep trunk green); \textbf{CD} = release+deploy.
 
 \subsection{Jobs, Stages \& Rules}
 \texttt{.gitlab-ci.yml} YAML DSL. \textbf{Job} = smallest unit, belongs to one \textbf{stage}, runs \texttt{script} on a runner. Same stage $\rightarrow$ \textit{parallel}; stages $\rightarrow$ \textit{sequential}. \\
@@ -64,21 +86,6 @@ Where code is deployed. \textbf{Tiers:} Local (workstation) $\rightarrow$ Dev (s
 \subsection{GitLab Runner}
 Worker executing jobs defined in .gitlab-ci.yml. \textbf{Scope:} Instance (shared, GitLab-managed) / Group / Project (dedicated). \textbf{Executors:} \texttt{shell}, \texttt{ssh}, \texttt{docker}, \texttt{docker+machine}, \texttt{kubernetes}, \texttt{virtualbox}, \texttt{parallels}. Register: \texttt{gitlab-runner register} with URL + token + tags + executor. Jobs pick runner by \texttt{tags:}.
 
-\subsection{More Keywords \& Docker Build}
+\subsection{More Keywords \& Predefined Vars}
 \texttt{default:} fallback \texttt{image}/\texttt{before\_script}. \texttt{before\_script}/\texttt{after\_script} wrap every \texttt{script}. \texttt{rules:changes:} run only if files changed. \\
 \textbf{Predefined vars:} \texttt{\$CI\_REGISTRY[\_IMAGE]}, \texttt{\$CI\_REGISTRY\_USER}/\texttt{\_PASSWORD}, \texttt{\$CI\_COMMIT\_BRANCH}, \texttt{\$CI\_COMMIT\_SHORT\_SHA}, \texttt{\$CI\_PROJECT\_DIR}, \texttt{\$CI\_JOB\_TOKEN} (auth API/registry), \texttt{\$CI\_MERGE\_REQUEST\_IID}. Pin images by digest (\texttt{img@sha256:..}), not \texttt{:latest} $\rightarrow$ flaky.
-\begin{lstlisting}[language=yaml]
-build-image:
-  stage: release
-  image: docker:28
-  services:
-    - {name: docker:28-dind, alias: docker}   # Docker-in-Docker
-  variables: {IMG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA}
-  before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-  script:
-    - docker build -t $IMG -f Dockerfile.prod .
-    - docker push $IMG
-  rules:
-    - changes: [Dockerfile.prod]
-\end{lstlisting}
