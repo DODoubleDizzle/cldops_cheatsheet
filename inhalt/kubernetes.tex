@@ -1,6 +1,7 @@
 \section{Kubernetes (K8)}
+\textbf{Problems solved:} automate deployment, scaling \& management of containerized apps across many nodes: doing it by hand (placement, restarts, updates, scaling) doesn't scale. \textit{K8s} = Greek ``pilot of the ship''.
 \begin{mdframed}
-  \textbf{Object:} persistent record-of-intent. \textbf{Controller:} reconciles current $\rightarrow$ desired state.
+  \textbf{Object:} persistent record-of-intent. \textbf{Controller:} reconciles current $\rightarrow$ desired state (the \textit{control loop}) $\to$ fault-tolerance (auto-replace failed pods), replica count (ReplicaSet), rolling updates + rollback (Deployment), autoscaling (HPA).
 \end{mdframed}
 
 \subsection{Architecture}
@@ -56,8 +57,10 @@ Container FS is ephemeral. \textbf{Volume:} dir in pod, lives w/ pod (\texttt{em
 \subsection{Namespaces}
 Logical isolation in one cluster (RBAC, quotas). Namespaced (Pods, Services) isolated; cluster-wide (Nodes, PV) shared. Defaults: \texttt{default}, \texttt{kube-system}, \texttt{kube-public}, \texttt{kube-node-lease}.
 
-\subsection{Rolling Updates}
-Deployment ensures availability during change. \textbf{Recreate:} kill all $\rightarrow$ recreate (downtime). \textbf{RollingUpdate} (default): tuned by \texttt{maxUnavailable} (max pods down) + \texttt{maxSurge} (max extra pods). \texttt{kubectl rollout history/undo} for revisions.
+\subsection{Rolling Updates \& Rollback}
+Deployment ensures availability during change. \textbf{Recreate:} kill all $\rightarrow$ recreate (downtime). \textbf{RollingUpdate} (default): tuned by \texttt{maxUnavailable} (max pods down) + \texttt{maxSurge} (max extra pods). \\
+\textbf{History \& rollback:} Deployment records a revision history, \kf{kubectl rollout history deploy/x} lists revisions, \kf{rollout undo deploy/x --to-revision=N} reverts. \\
+\textbf{Reliable config over time:} imperative is fast but hard to track/maintain $\to$ keep object YAML in \textbf{Git} (version control); alternative rollback = restore the file from an earlier commit \& \kf{kubectl apply}.
 
 \subsection{Scheduling}
 \texttt{kube-scheduler} picks node via \textbf{Filtering} then \textbf{Scoring}. \\
@@ -89,12 +92,27 @@ readinessProbe:
   httpGet: { path: /ready, port: 80 }
 \end{lstlisting}
 
+\subsection{Autoscaling (HPA)}
+\textbf{HorizontalPodAutoscaler:} auto-scales a workload's \textbf{replica count} on observed metrics -- holds performance during traffic spikes, cuts cost at low usage. \\
+\textbf{Key config:} \texttt{minReplicas}, \texttt{maxReplicas}, \textbf{target} metric (threshold that triggers scaling, e.g. 70\% CPU). \\
+\textbf{Metrics:} \textit{resource} (CPU/memory util, needs \textbf{Metrics Server}), \textit{custom} (app-specific via adapters), \textit{external} (traffic-based, e.g. requests/s). \\
+\textbf{Best practice:} pods must set resource \kf{requests}/\kf{limits}, HPA computes \% against them (none $\to$ no scaling); test scaling under load before prod.
+\begin{lstlisting}[language=sh]
+kubectl autoscale deploy php-apache --cpu-percent=50 --min=1 --max=10
+\end{lstlisting}
+
+\subsection{Imperative vs Declarative}
+3 ways to manage objects: \\
+\textbf{Imperative commands:} act on live objects straight from the CLI (\texttt{kubectl run}/\texttt{create}/\texttt{expose}/\texttt{scale}/\texttt{delete}); fast for one-off/learning, but not reproducible, no single source of truth, hard to review. \\
+\textbf{Imperative object config:} file + explicit verb (\texttt{kubectl create|replace|delete -f f.yaml}); \texttt{replace} \textit{overwrites} the object (drops changes not in the file). \\
+\textbf{Declarative config:} describe desired state in YAML, K8s computes \& applies the diff (\texttt{kubectl apply -f <dir/>}, even a whole folder); idempotent, repeatable, Git-friendly, \texttt{kubectl diff -f} previews. \textit{Recommended} (course: more control than CLI-only). \\
+\textit{Workflow:} scaffold with imperative \texttt{--dry-run=client -o yaml}, then manage declaratively via \texttt{apply}.
+
 \subsection{Commands}
 \textbf{Apply:} \texttt{kubectl \{create|apply|replace\} -f manifest.yaml} \\
 \textbf{Gen YAML:} \texttt{kubectl create deploy web --image=nginx --dry-run=client -o yaml > d.yaml} \\
 \textbf{Imperative:} \texttt{kubectl run}, \texttt{scale deploy x --replicas=4}, \texttt{expose} \\
 \textbf{Update image:} \texttt{kubectl set image deploy/x web=nginx:1.27} \\
-\textbf{Autoscale:} \texttt{kubectl autoscale deploy x --cpu-percent=50 --min=1 --max=10} \\
 \textbf{Inspect:} \texttt{kubectl get pods -A -o wide}, \texttt{describe node <n>}, \texttt{get nodes --show-labels} \\
 \textbf{Exec:} \texttt{kubectl exec -it nginx-xxx -- sh} (drop \texttt{-it} for one-shot) \\
 \textbf{Rollout:} \texttt{kubectl rollout \{status|history\} deploy x}, \texttt{rollout undo deploy x --to-revision=N} \\

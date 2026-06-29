@@ -28,7 +28,7 @@ YAML file = playbook (1..n plays); play = hosts + tasks; task = one module call.
   tasks:
     - name: Install packages    # list-as-option > loop (faster, deps OK)
       ansible.builtin.apt:      # FQCN: namespace.collection.module
-        name: "{{ packages }}"
+        name: "{{ packages }}"  # alternative for apt is yum
         state: present
       notify: restart nginx
     - name: Render config
@@ -38,6 +38,12 @@ YAML file = playbook (1..n plays); play = hosts + tasks; task = one module call.
   handlers:
     - name: restart nginx
       ansible.builtin.service: { name: nginx, state: restarted }
+\end{lstlisting}
+\textbf{Loop anti-pattern:} a per-item \texttt{loop:} runs the module once per package -- slower \& can break on interdependencies; prefer the whole list in one \texttt{name:} (single transaction, as above):
+\begin{lstlisting}[language=yaml]
+- name: suboptimal              # one apt/yum call per item
+  ansible.builtin.apt: { name: "{{ item }}", state: present }
+  loop: "{{ packages }}"
 \end{lstlisting}
 \subsection{Ad-hoc, Modules \& Errors}
 \textbf{Ad-hoc} (one module, no playbook): \texttt{ansible -i inv -m <module> -a '<args>' <target>}. The \texttt{setup} module gathers \textit{facts} (what "Gathering Facts" runs before tasks). \texttt{command} vs \texttt{shell}: \texttt{shell} allows pipes/redirects/vars; \textit{neither is idempotent}. \texttt{ansible-inventory -i inv --list} verifies the inventory; \texttt{--check} is a dry run. A playbook stops at the first failed task unless \texttt{ignore\_errors: true}.
