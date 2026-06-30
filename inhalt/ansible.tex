@@ -46,13 +46,16 @@ ansible_user=deploy
     - name: restart nginx
       ansible.builtin.service: { name: nginx, state: restarted }
 \end{lstlisting}
+\textbf{Handlers:} special tasks that run \textit{only when notified} (by a task reporting \texttt{changed}) and \textit{once}, at the \textbf{end of the play} -- even if notified by many tasks. Ideal for ``restart/reload after a config change''. Triggered with \texttt{notify: <handler name>}; a failed play skips pending handlers unless \texttt{force\_handlers: true}.
 \textbf{Loop anti-pattern:} a per-item \texttt{loop:} runs the module once per package -- slower \& can break on interdependencies; prefer the whole list in one \texttt{name:} (single transaction, as above):
 \begin{lstlisting}[language=yaml]
 - name: suboptimal              # one apt/yum call per item
   ansible.builtin.apt: { name: "{{ item }}", state: present }
   loop: "{{ packages }}"
 \end{lstlisting}
-\subsection{Ad-hoc, Modules \& Errors}
+\subsection{Modules, State, Ad-hoc \& Errors}
+\textbf{Modules:} the units of work; most are \textit{idempotent} -- you declare the desired \texttt{state:} and the module changes reality only if needed, returning \texttt{ok}/\texttt{changed}/\texttt{failed} as JSON. Common: \texttt{apt}/\texttt{yum} (pkgs), \texttt{copy}/\texttt{template} (files), \texttt{service}/\texttt{systemd}, \texttt{file} (dirs/links), \texttt{user}, \texttt{git}, \texttt{uri}. \\
+\textbf{State:} Ansible is \textit{stateless} -- no state file (unlike TF). Idempotency comes from each module comparing the desired \texttt{state} (\texttt{present}/\texttt{absent}/\texttt{started}/\texttt{stopped}/\texttt{latest}, \dots) to reality on every run, so re-running converges. \texttt{--check} = dry run, \texttt{--diff} = show what changes. \\
 \textbf{Ad-hoc} (one module, no playbook): \texttt{ansible -i inv -m <module> -a '<args>' <target>}. The \texttt{setup} module gathers \textit{facts} (what "Gathering Facts" runs before tasks). \texttt{command} vs \texttt{shell}: \texttt{shell} allows pipes/redirects/vars; \textit{neither is idempotent}. \texttt{ansible-inventory -i inv --list} verifies the inventory; \texttt{--check} is a dry run. A playbook stops at the first failed task unless \texttt{ignore\_errors: true}.
 \begin{lstlisting}[language=yaml]
 - name: validate
