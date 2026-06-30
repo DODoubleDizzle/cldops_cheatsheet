@@ -1,8 +1,8 @@
 \section{Helm}
-Package manager for K8 (apt/brew-like).
-\textbf{Chart:} files describing related K8 resources.
-\textbf{Release:} running instance.
-\textbf{Repo:} stores versioned charts.
+Package manager for K8 (apt/brew-like).\\
+\textbf{Chart:} files describing related K8 resources. \\
+\textbf{Release:} running instance. \\
+\textbf{Repo:} stores versioned charts. \\
 \textbf{Architecture:} client-side only (Helm 3, no Tiller); talks to K8 API directly; release state stored in-cluster as \textbf{Secrets} (in the release's namespace).
 \textcolor{ForestGreen}{\textbf{Pros:}} huge chart library, versioning/deps, lifecycle (install/upgrade/rollback), powerful Go-template logic.
 \textcolor{red}{\textbf{Cons:}} templates hard to debug, ``spaghetti YAML'', opaque state, steep curve. Use for: distributing complex apps, consuming community charts, advanced logic. Avoid for: simple YAML tweaks.
@@ -38,11 +38,12 @@ helm dependency update @\pChart{CHART}@    # pulls into charts/
 \kf{charts/} subcharts; \kf{crds/}  CRDs \\
 \kf{.helmignore} ignore globs (\texttt{!}=negate)
 \subsection{Chart.yaml fields:}
-\kf{apiVersion} \texttt{v2}=Helm 3+, \texttt{v1}=legacy
-\kf{name} chart name; \kf{version} chart version, SemVer2 (e.g.\ \texttt{1.4.0}) $\to$ \texttt{name-version.tgz}
-\kf{type} \texttt{application} (default) \textbar{} \texttt{library} (helpers only, no install)
-\kf{appVersion} app shipped (info-only)
-\kf{kubeVersion} allowed range (e.g. \texttt{>=1.12 <1.14}); install fails if mismatch
+\kf{apiVersion} \texttt{v2}=Helm 3+, \texttt{v1}=legacy \\
+\kf{name} chart name; \\
+\kf{version} chart version, SemVer2 (e.g.\ \texttt{1.4.0}) $\to$ \texttt{name-version.tgz} \\
+\kf{type} \texttt{application} (default) \textbar{} \texttt{library} (helpers only, no install) \\
+\kf{appVersion} app shipped (info-only) \\
+\kf{kubeVersion} allowed range (e.g. \texttt{>=1.12 <1.14}); install fails if mismatch \\
 \kf{dependencies} name/version/repository/condition/alias (\texttt{requirements.yaml} deprecated; lockfile on update)
 
 \subsection{Templating}

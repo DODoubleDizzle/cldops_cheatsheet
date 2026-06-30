@@ -1,25 +1,25 @@
 \section{General Definitions}
-\textbf{NIST Cloud:} On-demand self-service, Broad network access, Resource pooling (multi-tenant), Rapid elasticity, Measured service (pay-as-you-go).
-\textbf{Cloud Operations:} manage/optimize cloud services \& infra.
-\textbf{GitOps:} Git = single source of truth; declarative, versioned CI/CD.
-\textbf{DevOps:} dev+ops; automation, CI/CD, monitoring, agile.
-\textbf{CI:} developers integrate into the shared mainline frequently (small commits, short-lived branches); every push auto-triggers build + tests (unit/integration), catching conflicts/breakage early and keeping the trunk green \& releasable. Avoids big-bang ``integration hell''; fast feedback, fail fast.
-\textbf{CD:} once CI passes, the change is auto-packaged \& promoted through environments (dev$\to$staging$\to$prod). \kf{Continuous Delivery} = automated up to a manual gate before prod (one-click release; artifact always deployable); \kf{Continuous Deployment} = no gate, every green change auto-released to prod.
-\textbf{Platform Engineering:} internal self-service dev platforms (IDP); faster shipping.
-\textbf{How they relate:} DevOps (culture \& practice) $\to$ CI/CD (automates it via pipelines) $\to$ Platform Engineering (productizes it as a self-service IDP to scale across teams).
+\textbf{NIST Cloud:} On-demand self-service, Broad network access, Resource pooling (multi-tenant), Rapid elasticity, Measured service (pay-as-you-go). \\
+\textbf{Cloud Operations:} manage/optimize cloud services \& infra. \\
+\textbf{GitOps:} Git = single source of truth; declarative, versioned CI/CD. \\
+\textbf{DevOps:} dev+ops; automation, CI/CD, monitoring, agile. \\
+\textbf{CI:} developers integrate into the shared mainline frequently (small commits, short-lived branches); every push auto-triggers build + tests (unit/integration), catching conflicts/breakage early and keeping the trunk green \& releasable. Avoids big-bang ``integration hell''; fast feedback, fail fast. \\
+\textbf{CD:} once CI passes, the change is auto-packaged \& promoted through environments (dev$\to$staging$\to$prod). \kf{Continuous Delivery} = automated up to a manual gate before prod (one-click release; artifact always deployable); \kf{Continuous Deployment} = no gate, every green change auto-released to prod. \\
+\textbf{Platform Engineering:} internal self-service dev platforms (IDP); faster shipping. \\
+\textbf{How they relate:} DevOps (culture \& practice) $\to$ CI/CD (automates it via pipelines) $\to$ Platform Engineering (productizes it as a self-service IDP to scale across teams). \\
 \textbf{DevOps 6 pillars:} Cultural mindset, Automation-first, Continuous Processes, Monitoring/Feedback, Rapid+Reliable Releases, Security.
 \subsection{DevOps Cycle}
 \includegraphics[width=\linewidth]{devops.png} \\
 \textbf{Arcs $\to$ stages:} \textcolor{ciGreen}{\textbf{CI:}} Code+Build+Test, \textcolor{cdBlue}{\textbf{CDeployment:}} Release+Deploy (+Test), \textcolor{deliveryPurple}{\textbf{CDelivery:}} Test+Release (manual prod), \textcolor{feedbackOrange}{\textbf{CFeedback:}} Operate+Monitor+Plan. \\
-\textbf{Stages (\actv{activities} | \tool{tools}):}
-\textbf{Plan} (\actv{requirements, roadmap, arch sketch, risk/rollback} | \tool{Jira, Asana, GitHub Issues, Trello}),
-\textbf{Code} (\actv{write/refactor, local build/test, peer review} | \tool{GitLab, GitHub, Bitbucket}),
-\textbf{Build} (\actv{compile, container images, publish artifacts, versioned packages} | \tool{GitLab CI, GH Actions, Jenkins, Maven/Gradle, Docker/Podman, Artifactory, Quay}),
-\textbf{Test} (\actv{unit/integration/E2E, perf/load, sec scans, coverage, quality gates} | \tool{JUnit/pytest, Selenium/Cypress/Playwright, JMeter/k6, Snyk/Trivy, SonarQube}),
-\textbf{Release} (\actv{promote artifact, immutable version, release notes, signing} | \tool{Cosign, GnuPG, GitLab/GH Packages}),
-\textbf{Deploy} (\actv{pull artifact, apply manifest, strategy, post-deploy validation, rollback} | \tool{ArgoCD, Flux, Helm, Kustomize, Terraform/OpenTofu, Ansible, Flagger}),
-\textbf{Operate} (\actv{troubleshoot, scale, patch, secret rotation, drift detect, backups, compliance} | \tool{PagerDuty, Vault, Velero, HPA/VPA, Falco}),
-\textbf{Monitor} (\actv{SLI/SLO, dashboards, alerts, synthetic checks, correlate logs/metrics/traces} | \tool{Prometheus, Grafana, Loki, Jaeger, ELK, Alertmanager}). \\
+\textbf{Stages (\actv{activities} | \tool{tools}):} \\
+\textbf{Plan} (\actv{requirements, roadmap, arch sketch, risk/rollback} | \tool{Jira, Asana, GitHub Issues, Trello}), \\
+\textbf{Code} (\actv{write/refactor, local build/test, peer review} | \tool{GitLab, GitHub, Bitbucket}), \\
+\textbf{Build} (\actv{compile, container images, publish artifacts, versioned packages} | \tool{GitLab CI, GH Actions, Jenkins, Maven/Gradle, Docker/Podman, Artifactory, Quay}), \\
+\textbf{Test} (\actv{unit/integration/E2E, perf/load, sec scans, coverage, quality gates} | \tool{JUnit/pytest, Selenium/Cypress/Playwright, JMeter/k6, Snyk/Trivy, SonarQube}), \\
+\textbf{Release} (\actv{promote artifact, immutable version, release notes, signing} | \tool{Cosign, GnuPG, GitLab/GH Packages}), \\
+\textbf{Deploy} (\actv{pull artifact, apply manifest, strategy, post-deploy validation, rollback} | \tool{ArgoCD, Flux, Helm, Kustomize, Terraform/OpenTofu, Ansible, Flagger}), \\
+\textbf{Operate} (\actv{troubleshoot, scale, patch, secret rotation, drift detect, backups, compliance} | \tool{PagerDuty, Vault, Velero, HPA/VPA, Falco}), \\
+\textbf{Monitor} (\actv{SLI/SLO, dashboards, alerts, synthetic checks, correlate logs/metrics/traces} | \tool{Prometheus, Grafana, Loki, Jaeger, ELK, Alertmanager}). \\ \\
 \textbf{CD Deployment Strategies:}
 \begin{itemize}
 	\item \textbf{Rolling:} gradual update, minimal downtime

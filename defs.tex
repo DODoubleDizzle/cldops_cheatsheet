@@ -40,6 +40,8 @@
 % Helm chart files / Chart.yaml fields / template objects -> one teal "key" style
 \definecolor{keyc}{HTML}{0F766E}
 \newcommand{\kf}[1]{\textcolor{keyc}{#1}}
+% Tree line: flush first line, wrapped comment continuations hang-indent
+\newcommand{\treeline}[1]{\hangindent=4em\hangafter=1\noindent #1\par}
 
 % Load tikz with extensions
 \usepackage{tikz}

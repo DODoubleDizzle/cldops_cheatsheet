@@ -1,7 +1,7 @@
 \section{Kustomize}
-Template-free overlay tool, built into kubectl (\texttt{-k}). \texttt{kustomization.yaml} lists \textbf{resources} + declarative \textbf{transformers} (cross-cutting fields) + \textbf{patches} (partial spec edits) + \textbf{generators}.
-\textcolor{ForestGreen}{\textbf{Pros:}} pure YAML, native to kubectl, easy diff/review, easy to learn.
-\textcolor{red}{\textbf{Cons:}} less powerful than Helm, no deps mgmt, hard to package/distribute, limited conditionals.
+Template-free overlay tool, built into kubectl (\texttt{-k}). \texttt{kustomization.yaml} lists \textbf{resources} + declarative \textbf{transformers} (cross-cutting fields) + \textbf{patches} (partial spec edits) + \textbf{generators}. \\
+\textcolor{ForestGreen}{\textbf{Pros:}} pure YAML, native to kubectl, easy diff/review, easy to learn. \\
+\textcolor{red}{\textbf{Cons:}} less powerful than Helm, no deps mgmt, hard to package/distribute, limited conditionals. \\
 \textbf{Use for:} env-specific configs (dev/prod), avoiding templating. Often combined with Helm.
 
 \subsection{Commands}

@@ -45,7 +45,7 @@ post-deploy:                 # DevOps cycle -> Operate/Monitor
 Pipeline = automated steps $\rightarrow$ faster, safer, reliable. Traceable logs, parallel jobs, consistent envs kill "works on my machine".
 
 \textbf{5-stage flow:} commit/MR/tag $\rightarrow$ \textit{build} (compile, image, package) $\rightarrow$ \textit{test} (unit/integration/security/perf) $\rightarrow$ \textit{release} (publish to registry) $\rightarrow$ \textit{deploy} (target env) $\rightarrow$ \textit{post-deploy} (smoke, health, rollback). \\
-\textbf{Map to DevOps cycle:} the pipeline automates the loop's middle -- \texttt{build}$\to$Build, \texttt{test}$\to$Test, \texttt{release}$\to$Release, \texttt{deploy}$\to$Deploy; \textit{triggered by} Code (commit/MR/tag), \textit{feeds} Operate/Monitor. \textbf{CI} = build+test (keep trunk green); \textbf{CD} = release+deploy.
+\textbf{Map to DevOps cycle:} the pipeline automates the loop's middle -- \texttt{build}$\to$Build, \texttt{test}$\to$Test, \texttt{release}$\to$Release, \texttt{deploy}$\to$Deploy; \textit{triggered by} Code (commit/MR/tag), \textit{feeds} Operate/Monitor. \textbf{CI} = build+test; \textbf{CD} = release+deploy.
 
 \subsection{Jobs, Stages \& Rules}
 \texttt{.gitlab-ci.yml} YAML DSL. \textbf{Job} = smallest unit, belongs to one \textbf{stage}, runs \texttt{script} on a runner. Same stage $\rightarrow$ \textit{parallel}; stages $\rightarrow$ \textit{sequential}. \\
@@ -67,7 +67,9 @@ deploy:
 \end{lstlisting}
 
 \subsection{Cache, Artifacts \& Services}
-\textbf{Cache:} shared across jobs/pipelines, speed up repeat work (deps, compiled objects). \textbf{Artifacts:} files persisted to GitLab for downstream stages or download; declare via \texttt{dependencies}/\texttt{needs}. \textbf{Services:} sidecar containers (DB, dind, API) reachable via \texttt{alias}.
+\textbf{Cache:} shared across jobs/pipelines, speed up repeat work (deps, compiled objects). \\
+\textbf{Artifacts:} files persisted to GitLab for downstream stages or download; declare via \texttt{dependencies}/\texttt{needs}. \\
+\textbf{Services:} sidecar containers (DB, dind, API) reachable via \texttt{alias}. \\
 \begin{lstlisting}[language=yaml]
 integration-test:
   services: [{name: postgres:17, alias: db}]
@@ -81,11 +83,19 @@ integration-test:
 Where code is deployed. \textbf{Tiers:} Local (workstation) $\rightarrow$ Dev (sandbox) $\rightarrow$ Integration (CI target) $\rightarrow$ Test/QC (interface tests) $\rightarrow$ Staging (prod mirror) $\rightarrow$ Production (live). Linkable to K8s cluster (set up via UI). \texttt{environment.on\_stop} unstages; \texttt{action: stop} stops it.
 
 \subsection{Push vs. Pull Deployment}
-\textbf{Push} (Jenkins/GitLab calls cluster): + easy, flexible targets (VMs/containers, not just K8s); -- firewall open, admin access out, pipeline per env. \textbf{Pull} (agent in cluster, e.g. Argo/Flux): + secure (no inbound), auto-reconcile, scales identically; -- agent per cluster, polling latency.
+\textbf{Push} (Jenkins/GitLab calls cluster): \textcolor{ForestGreen}{\textbf{pro:}} easy, flexible targets (VMs/containers, not just K8s); \textcolor{red}{\textbf{con:}} firewall open, admin access out, pipeline per env.  \\
+\textbf{Pull} (agent in cluster, e.g. Argo/Flux): \textcolor{ForestGreen}{\textbf{pro:}} secure (no inbound), auto-reconcile, scales identically; \textcolor{red}{\textbf{con:}} agent per cluster, polling latency.
 
 \subsection{GitLab Runner}
 Worker executing jobs defined in .gitlab-ci.yml. \textbf{Scope:} Instance (shared, GitLab-managed) / Group / Project (dedicated). \textbf{Executors:} \texttt{shell}, \texttt{ssh}, \texttt{docker}, \texttt{docker+machine}, \texttt{kubernetes}, \texttt{virtualbox}, \texttt{parallels}. Register: \texttt{gitlab-runner register} with URL + token + tags + executor. Jobs pick runner by \texttt{tags:}.
 
 \subsection{More Keywords \& Predefined Vars}
 \texttt{default:} fallback \texttt{image}/\texttt{before\_script}. \texttt{before\_script}/\texttt{after\_script} wrap every \texttt{script}. \texttt{rules:changes:} run only if files changed. \\
-\textbf{Predefined vars:} \texttt{\$CI\_REGISTRY[\_IMAGE]}, \texttt{\$CI\_REGISTRY\_USER}/\texttt{\_PASSWORD}, \texttt{\$CI\_COMMIT\_BRANCH}, \texttt{\$CI\_COMMIT\_SHORT\_SHA}, \texttt{\$CI\_PROJECT\_DIR}, \texttt{\$CI\_JOB\_TOKEN} (auth API/registry), \texttt{\$CI\_MERGE\_REQUEST\_IID}. Pin images by digest (\texttt{img@sha256:..}), not \texttt{:latest} $\rightarrow$ flaky.
+\textbf{Predefined vars:} \\
+\texttt{\$CI\_REGISTRY[\_IMAGE]}, \\
+\texttt{\$CI\_REGISTRY\_USER}/\texttt{\_PASSWORD}, \\
+\texttt{\$CI\_COMMIT\_BRANCH}, \\
+\texttt{\$CI\_COMMIT\_SHORT\_SHA}, \\
+\texttt{\$CI\_PROJECT\_DIR}, \\
+\texttt{\$CI\_JOB\_TOKEN} (auth API/registry),
+\texttt{\$CI\_MERGE\_REQUEST\_IID}. Pin images by digest (\texttt{img@sha256:..}), not \texttt{:latest} $\rightarrow$ flaky.

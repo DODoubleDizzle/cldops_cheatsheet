@@ -46,8 +46,29 @@ terraform {
 }
 \end{lstlisting}
 \subsection{File \& Folder Layout}
-\textbf{Files:} \texttt{terraform.tf} (required\_version/providers), \texttt{backend.tf} (remote state, kept out of VCS), \texttt{providers.tf} (auth/config), \texttt{main.tf} (resources/data), \texttt{variables.tf} (inputs, alphabetical), \texttt{outputs.tf} (returns, alphabetical), \texttt{locals.tf} (derived values), \texttt{override.tf} (loaded last, sparingly). \\
-\textbf{One folder per env} (\texttt{dev/}, \texttt{prod/}) -> separate state files so a corruption hits only one env; shared \texttt{modules/} alongside.
+\treeline{\texttt{├─~}\kf{\texttt{modules/}}}
+\treeline{\texttt{│~~~~~~}shared modules, reusable across envs}
+\treeline{\texttt{├─~}\kf{\texttt{dev/}}}
+\treeline{\texttt{│~~├──~}\kf{\texttt{terraform.tf}}}
+\treeline{\texttt{│~~│~~~}required\_version + providers}
+\treeline{\texttt{│~~├──~}\kf{\texttt{backend.tf}}}
+\treeline{\texttt{│~~│~~~}remote state (kept out of VCS)}
+\treeline{\texttt{│~~├──~}\kf{\texttt{providers.tf}}}
+\treeline{\texttt{│~~│~~~}provider auth/config}
+\treeline{\texttt{│~~├──~}\kf{\texttt{main.tf}}}
+\treeline{\texttt{│~~│~~~}resources \& data sources}
+\treeline{\texttt{│~~├──~}\kf{\texttt{variables.tf}}}
+\treeline{\texttt{│~~│~~~}inputs (alphabetical)}
+\treeline{\texttt{│~~├──~}\kf{\texttt{outputs.tf}}}
+\treeline{\texttt{│~~│~~~}returns (alphabetical)}
+\treeline{\texttt{│~~├──~}\kf{\texttt{locals.tf}}}
+\treeline{\texttt{│~~│~~~}derived values}
+\treeline{\texttt{│~~└──~}\kf{\texttt{override.tf}}}
+\treeline{\texttt{│~~~~~~}loaded last (use sparingly)}
+\treeline{\texttt{└──~}\kf{\texttt{prod/}}}
+\treeline{\texttt{~~~~~~~}same layout, its own state}
+\smallskip
+Per-env folders $\to$ separate state, so a corruption hits only one env.
 \subsection{Modules}
 Reusable folder of \texttt{.tf} files (root config is itself a module):
 \begin{lstlisting}[language=hcl]

@@ -13,7 +13,14 @@ web2.example.com ansible_host=10.0.0.5
 ansible_user=deploy
 \end{lstlisting}
 \subsection{Playbooks, Plays \& Tasks}
-YAML file = playbook (1..n plays); play = hosts + tasks; task = one module call. Run: \texttt{ansible-playbook -i inv playbook.yml}. Flags: \texttt{--check} (dry run), \texttt{--list-tasks} (preview), \texttt{--tags}/\texttt{--skip-tags}, \texttt{--ask-vault-pass}.
+\textbf{Hierarchy:} a \kf{playbook} is one YAML file holding 1..n \kf{plays}; a play maps a group of \kf{hosts} to an ordered list of \kf{tasks}; each task is a single \kf{module} call (e.g. \kf{apt}, \kf{copy}), the atomic unit of work. \\
+\textbf{Run:} \texttt{ansible-playbook -i inv playbook.yml} (\texttt{-i} = inventory file). Handy flags:
+\begin{itemize}
+  \item \kf{--check}, dry run: report what \textit{would} change, change nothing
+  \item \kf{--list-tasks}, list the tasks without running them (preview)
+  \item \kf{--tags <t>} / \kf{--skip-tags <t>}, run only / skip tasks tagged \texttt{<t>}
+  \item \kf{--ask-vault-pass}, prompt for the Vault password (decrypt vaulted vars)
+\end{itemize}
 \begin{lstlisting}[language=yaml]
 - name: Example Playbook
   hosts: web

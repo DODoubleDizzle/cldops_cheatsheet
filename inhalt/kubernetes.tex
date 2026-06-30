@@ -1,5 +1,5 @@
 \section{Kubernetes (K8)}
-\textbf{Problems solved:} automate deployment, scaling \& management of containerized apps across many nodes: doing it by hand (placement, restarts, updates, scaling) doesn't scale. \textit{K8s} = Greek ``pilot of the ship''.
+\textbf{Problems solved:} automate deployment, scaling \& management of containerized apps across many nodes: doing it by hand (placement, restarts, updates, scaling) doesn't scale.
 \begin{mdframed}
   \textbf{Object:} persistent record-of-intent. \textbf{Controller:} reconciles current $\rightarrow$ desired state (the \textit{control loop}) $\to$ fault-tolerance (auto-replace failed pods), replica count (ReplicaSet), rolling updates + rollback (Deployment), autoscaling (HPA).
 \end{mdframed}
@@ -8,7 +8,19 @@
 \textbf{Control plane:} \texttt{kube-apiserver} (REST front), \texttt{etcd} (KV store), \texttt{kube-scheduler} (pod $\rightarrow$ node), \texttt{kube-controller-manager} (built-in controllers), \texttt{cloud-controller-manager} (cloud glue, optional). \textbf{Node:} \texttt{kubelet} (runs pods via container runtime), \texttt{kube-proxy} (Service networking/iptables).
 
 \subsection{Objects}
-\textbf{Pod:} smallest unit, 1+ containers share net/storage. \textbf{Sidecar:} container running alongside main in same pod (logs, proxy). \textbf{Init container:} runs to completion before main. \textbf{ReplicaSet:} keeps N pod replicas (rarely used directly). \textbf{Deployment:} manages ReplicaSets, rolling updates, rollback. \textbf{StatefulSet:} ordered pods with stable identity + per-pod PVC (DBs, brokers). \textbf{DaemonSet:} one pod per (matching) node -- logs, CNI, monitoring. \textbf{Service:} stable VIP/DNS + LB over pod set. \textbf{Ingress:} L7 HTTP(S) entrypoint. \textbf{Volume:} dir mounted into pod. \textbf{ConfigMap:} non-secret KV config. \textbf{Secret:} sensitive KV, base64-encoded, \textit{not} encrypted by default. \textbf{HPA:} autoscales replicas on metrics.
+\textbf{Pod:} smallest unit, 1+ containers share net/storage. \\
+\textbf{Sidecar:} container running alongside main in same pod (logs, proxy). \\
+\textbf{Init container:} runs to completion before main. \\
+\textbf{ReplicaSet:} keeps N pod replicas (rarely used directly). \\
+\textbf{Deployment:} manages ReplicaSets, rolling updates, rollback. \\
+\textbf{StatefulSet:} ordered pods with stable identity + per-pod PVC (DBs, brokers). \\
+\textbf{DaemonSet:} one pod per (matching) node: logs, CNI, monitoring. \\
+\textbf{Service:} stable VIP/DNS + LB over pod set. \\
+\textbf{Ingress:} L7 HTTP(S) entrypoint. \\
+\textbf{Volume:} dir mounted into pod. \\
+\textbf{ConfigMap:} non-secret KV config. \\
+\textbf{Secret:} sensitive KV, base64-encoded, \textit{not} encrypted by default. \\
+\textbf{HPA:} autoscales replicas on metrics. \textbf{CRD (Custom Resource Definition):} registers a new object \textit{kind} to extend the K8s API; an \textbf{Operator} = custom controller that reconciles such custom resources (e.g. \texttt{ServiceMonitor}, Argo \texttt{Application}, \texttt{CiliumNetworkPolicy}).
 \begin{lstlisting}[language=yaml]
 apiVersion: apps/v1
 kind: Deployment
@@ -70,7 +82,8 @@ Deployment ensures availability during change. \textbf{Recreate:} kill all $\rig
 spec:
   nodeSelector: { disktype: ssd }
 \end{lstlisting}
-\textbf{Taints} on nodes repel pods; \textbf{Tolerations} on pods allow (don't force) them onto tainted nodes -- pair w/ \texttt{nodeSelector}/affinity to pin. Effects: \textit{NoSchedule, PreferNoSchedule, NoExecute} (evict). No effect on DaemonSets. \\
+\textbf{Taints} on nodes repel pods; \\
+\textbf{Tolerations} on pods allow (don't force) them onto tainted nodes -- pair w/ \texttt{nodeSelector}/affinity to pin. Effects: \textit{NoSchedule, PreferNoSchedule, NoExecute} (evict). No effect on DaemonSets. \\
 CLI: \texttt{kubectl taint nodes <n> gpu=true:NoSchedule}, \texttt{kubectl label nodes <n> disktype=ssd} (trailing \texttt{-} removes).
 \begin{lstlisting}[language=yaml]
 tolerations:
@@ -79,7 +92,12 @@ tolerations:
 \textbf{cordon/drain:} \texttt{kubectl cordon <n>} marks unschedulable (existing stay); \texttt{drain <n>} also evicts pods (maintenance); \texttt{uncordon <n>} reverts.
 
 \subsection{Probes \& Resources}
-kubelet probes via \texttt{httpGet}/\texttt{tcpSocket}/\texttt{exec}. \textbf{Liveness:} fail $\rightarrow$ restart. \textbf{Readiness:} fail $\rightarrow$ remove from Service endpoints. \textbf{Startup:} guards slow boots, disables others until OK. Repeated liveness fail $\rightarrow$ exp backoff $\rightarrow$ \texttt{CrashLoopBackOff}. \textbf{requests:} reserved min (scheduling). \textbf{limits:} ceiling -- CPU throttled, memory over-limit $\rightarrow$ OOMKilled.
+kubelet probes via \texttt{httpGet}/\texttt{tcpSocket}/\texttt{exec}. \\
+\textbf{Liveness:} fail $\rightarrow$ restart. \\
+\textbf{Readiness:} fail $\rightarrow$ remove from Service endpoints. \\
+\textbf{Startup:} guards slow boots, disables others until OK. Repeated liveness fail $\rightarrow$ exp backoff $\rightarrow$ \texttt{CrashLoopBackOff}. \\
+\textbf{requests:} reserved min (scheduling). \\
+\textbf{limits:} ceiling: CPU throttled, memory over-limit $\rightarrow$ OOMKilled.
 \begin{lstlisting}[language=yaml]
 resources:
   requests: { cpu: "250m", memory: "64Mi" }
@@ -93,9 +111,9 @@ readinessProbe:
 \end{lstlisting}
 
 \subsection{Autoscaling (HPA)}
-\textbf{HorizontalPodAutoscaler:} auto-scales a workload's \textbf{replica count} on observed metrics -- holds performance during traffic spikes, cuts cost at low usage. \\
-\textbf{Key config:} \texttt{minReplicas}, \texttt{maxReplicas}, \textbf{target} metric (threshold that triggers scaling, e.g. 70\% CPU). \\
-\textbf{Metrics:} \textit{resource} (CPU/memory util, needs \textbf{Metrics Server}), \textit{custom} (app-specific via adapters), \textit{external} (traffic-based, e.g. requests/s). \\
+\textbf{HorizontalPodAutoscaler:} auto-scales a workload's \kf{replica count} on observed metrics, holds performance during traffic spikes, cuts cost at low usage. \\
+\textbf{Key config:} \kf{minReplicas}, \kf{maxReplicas}, \kf{target} metric (threshold that triggers scaling, e.g. 70\% CPU). \\
+\textbf{Metrics:} \textit{resource} (CPU/memory util, needs \kf{Metrics Server}), \textit{custom} (app-specific via adapters), \textit{external} (traffic-based, e.g. requests/s). \\
 \textbf{Best practice:} pods must set resource \kf{requests}/\kf{limits}, HPA computes \% against them (none $\to$ no scaling); test scaling under load before prod.
 \begin{lstlisting}[language=sh]
 kubectl autoscale deploy php-apache --cpu-percent=50 --min=1 --max=10
